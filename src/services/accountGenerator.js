@@ -62,10 +62,22 @@ const generateUsername = (firstName, lastName) => {
 };
 
 /**
- * Generate a random email
+ * Generate a unique email with UUID to guarantee zero duplicates
+ * UUID v4 is cryptographically random - probability of collision is essentially zero
+ * @param {string} username - Username for email
+ * @param {string} emailType - Type: 'icloud', 'gmail', or 'random'
  */
-const generateEmail = (username) => {
-  return `${username}@${randomElement(domains)}`;
+const generateEmail = (username, emailType = 'random') => {
+  // Add short UUID portion for guaranteed uniqueness (8 characters from UUID v4)
+  const uniqueId = uuidv4().slice(0, 8);
+  const uniqueUsername = `${username}${uniqueId}`;
+
+  if (emailType === 'icloud') {
+    return `${uniqueUsername}@icloud.com`;
+  } else if (emailType === 'gmail') {
+    return `${uniqueUsername}@gmail.com`;
+  }
+  return `${uniqueUsername}@${randomElement(domains)}`;
 };
 
 /**
@@ -119,18 +131,21 @@ const generateSerialNumber = () => {
 
 /**
  * Generate a single account
+ * @param {Object} options - Generation options
+ * @param {string} options.emailType - Email type: 'icloud', 'gmail', or 'random'
  */
-export const generateAccount = () => {
+export const generateAccount = (options = {}) => {
+  const { emailType = 'random' } = options;
   const firstName = randomElement(firstNames);
   const lastName = randomElement(lastNames);
   const username = generateUsername(firstName, lastName);
-  
+
   return {
     id: uuidv4(),
     firstName,
     lastName,
     username,
-    email: generateEmail(username),
+    email: generateEmail(username, emailType),
     password: generatePassword(randomInt(14, 20)),
     birthday: generateBirthday(),
     serialNumber: generateSerialNumber(),
@@ -143,8 +158,12 @@ export const generateAccount = () => {
 /**
  * Generate multiple accounts with progress callback
  * Uses chunked processing for performance with large batches
+ * @param {number} count - Number of accounts to generate
+ * @param {Function} onProgress - Progress callback
+ * @param {Object} options - Generation options
+ * @param {string} options.emailType - Email type: 'icloud', 'gmail', or 'random'
  */
-export const generateAccounts = async (count, onProgress) => {
+export const generateAccounts = async (count, onProgress, options = {}) => {
   const accounts = [];
   const chunkSize = 100; // Process 100 accounts at a time
   let processed = 0;
@@ -152,13 +171,13 @@ export const generateAccounts = async (count, onProgress) => {
   return new Promise((resolve) => {
     const processChunk = () => {
       const chunkEnd = Math.min(processed + chunkSize, count);
-      
+
       for (let i = processed; i < chunkEnd; i++) {
-        accounts.push(generateAccount());
+        accounts.push(generateAccount(options));
       }
-      
+
       processed = chunkEnd;
-      
+
       if (onProgress) {
         onProgress({
           current: processed,

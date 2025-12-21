@@ -25,7 +25,7 @@ import { downloadAccountPDF } from './services/pdfGenerator';
 import { downloadAccountsZip, exportAccountsAsJSON, exportAccountsAsCSV } from './services/zipExporter';
 
 // Icons
-import { Eye, AlertTriangle, Trash2 } from 'lucide-react';
+import { Eye, AlertTriangle, Trash2, Upload, X, Settings } from 'lucide-react';
 
 /**
  * Main Application Component
@@ -46,6 +46,9 @@ function App() {
     });
     const [deleteModal, setDeleteModal] = useState({ open: false, accountId: null });
     const [clearAllModal, setClearAllModal] = useState(false);
+    const [customLogo, setCustomLogo] = useState(null);
+    const [cardColor, setCardColor] = useState('blue'); // 'blue' or 'black'
+    const [emailType, setEmailType] = useState('random'); // 'random', 'icloud', or 'gmail'
 
     // Custom hooks
     const {
@@ -94,7 +97,7 @@ function App() {
         try {
             const newAccounts = await generateAccounts(count, (progress) => {
                 setGenerateProgress(progress);
-            });
+            }, { emailType });
 
             addAccounts(newAccounts);
             logCreate(count);
@@ -111,7 +114,7 @@ function App() {
             setIsGenerating(false);
             setGenerateProgress(null);
         }
-    }, [addAccounts, logCreate, toast]);
+    }, [addAccounts, logCreate, toast, emailType]);
 
     /**
      * Handle account deletion
@@ -164,7 +167,7 @@ function App() {
         try {
             await downloadAccountsZip(accounts, (progress) => {
                 setExportProgress(progress);
-            });
+            }, customLogo, cardColor);
 
             logDownload(accounts.length);
             toast.success(
@@ -178,7 +181,7 @@ function App() {
             setIsExporting(false);
             setExportProgress(null);
         }
-    }, [accounts, logDownload, toast]);
+    }, [accounts, logDownload, toast, customLogo, cardColor]);
 
     /**
      * Handle JSON export
@@ -211,13 +214,13 @@ function App() {
      */
     const handleDownloadSingle = useCallback(async (account) => {
         try {
-            await downloadAccountPDF(account);
+            await downloadAccountPDF(account, 1, customLogo, undefined, cardColor);
             logDownload(1);
             toast.success('PDF Downloaded', `Account card for ${account.username} saved`);
         } catch (error) {
             toast.error('Download Failed', error.message);
         }
-    }, [logDownload, toast]);
+    }, [logDownload, toast, customLogo, cardColor]);
 
     /**
      * Handle copy action
@@ -236,6 +239,37 @@ function App() {
             localStorage.setItem('hideTips', 'true');
         } catch { }
     }, []);
+
+    /**
+     * Handle custom logo upload
+     */
+    const handleLogoUpload = useCallback((event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                toast.error('Invalid File', 'Please upload an image file');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error('File Too Large', 'Image must be under 5MB');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                setCustomLogo(e.target.result);
+                toast.success('Logo Uploaded', 'Custom logo has been set');
+            };
+            reader.readAsDataURL(file);
+        }
+    }, [toast]);
+
+    /**
+     * Handle remove custom logo
+     */
+    const handleRemoveLogo = useCallback(() => {
+        setCustomLogo(null);
+        toast.info('Logo Removed', 'Using default Apple logo');
+    }, [toast]);
 
     return (
         <div className="app-container">
@@ -289,9 +323,141 @@ function App() {
                             <Card.Header>
                                 <Eye size={18} style={{ color: 'var(--color-accent-green)' }} />
                                 <span>Card Preview</span>
+                                <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--spacing-xs)' }}>
+                                    <label style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--spacing-xs)',
+                                        padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                        background: 'var(--color-bg-tertiary)',
+                                        borderRadius: 'var(--border-radius-sm)',
+                                        cursor: 'pointer',
+                                        fontSize: 'var(--font-size-xs)',
+                                        color: 'var(--color-text-secondary)',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                        <Upload size={14} />
+                                        {customLogo ? 'Change Logo' : 'Upload Logo'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleLogoUpload}
+                                            style={{ display: 'none' }}
+                                        />
+                                    </label>
+                                    {customLogo && (
+                                        <button
+                                            onClick={handleRemoveLogo}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: 'var(--spacing-xs)',
+                                                background: 'rgba(255, 59, 48, 0.1)',
+                                                border: 'none',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                cursor: 'pointer',
+                                                color: 'var(--color-accent-red)'
+                                            }}
+                                            title="Remove custom logo"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
                             </Card.Header>
                             <Card.Body style={{ padding: 0 }}>
-                                <AccountCard account={selectedAccount} />
+                                <AccountCard account={selectedAccount} customLogo={customLogo} />
+                            </Card.Body>
+                        </Card>
+
+                        {/* Card Settings */}
+                        <Card hover={false}>
+                            <Card.Header>
+                                <Settings size={18} style={{ color: 'var(--color-accent-purple)' }} />
+                                <span>Card Settings</span>
+                            </Card.Header>
+                            <Card.Body>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                                    {/* Card Color */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        <label style={{
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 'var(--font-weight-medium)',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>Card Color</label>
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                            <button
+                                                onClick={() => setCardColor('blue')}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: cardColor === 'blue' ? '2px solid var(--color-accent-blue)' : '2px solid var(--border-color)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: cardColor === 'blue' ? 'rgba(0, 136, 204, 0.15)' : 'var(--color-bg-secondary)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--spacing-sm)',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#0088CC' }}></span>
+                                                <span style={{ fontWeight: cardColor === 'blue' ? 600 : 400 }}>Blue</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setCardColor('black')}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: cardColor === 'black' ? '2px solid #1E1E1E' : '2px solid var(--border-color)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: cardColor === 'black' ? 'rgba(30, 30, 30, 0.15)' : 'var(--color-bg-secondary)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--spacing-sm)',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <span style={{ width: 16, height: 16, borderRadius: 4, background: '#1E1E1E' }}></span>
+                                                <span style={{ fontWeight: cardColor === 'black' ? 600 : 400 }}>Black</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Email Type */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        <label style={{
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 'var(--font-weight-medium)',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>Email Type</label>
+                                        <select
+                                            value={emailType}
+                                            onChange={(e) => setEmailType(e.target.value)}
+                                            style={{
+                                                padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                border: '1px solid var(--border-color-strong)',
+                                                borderRadius: 'var(--border-radius-md)',
+                                                background: 'var(--color-bg-secondary)',
+                                                fontSize: 'var(--font-size-md)',
+                                                color: 'var(--color-text-primary)',
+                                                cursor: 'pointer',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="random">Random (Mixed)</option>
+                                            <option value="icloud">iCloud Only</option>
+                                            <option value="gmail">Gmail Only</option>
+                                        </select>
+                                        <span style={{
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'var(--color-text-tertiary)'
+                                        }}>
+                                            Applied to newly generated accounts
+                                        </span>
+                                    </div>
+                                </div>
                             </Card.Body>
                         </Card>
 
