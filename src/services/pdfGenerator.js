@@ -12,15 +12,21 @@ const CARD_COLORS = {
 
 /**
  * Generate QR code data URL from account data
+ * @param {Object} account - Account data
+ * @param {string} websiteDomain - Base URL for QR code
+ * @param {string} cardColor - Card color: 'blue' or 'black'
+ * @param {string} customLogo - Optional base64 custom logo
  */
-const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN) => {
+const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', customLogo = null) => {
     const accountData = {
         sn: account.serialNumber,
         email: account.email,
         pass: account.password,
         name: `${account.firstName} ${account.lastName}`,
         dob: account.birthday,
-        id: account.accountId
+        id: account.accountId,
+        color: cardColor,
+        logo: customLogo ? customLogo.substring(0, 500) : null // Limit logo data size for QR
     };
 
     // Encode account data as base64 in URL
@@ -94,8 +100,12 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
     pdf.setTextColor(255, 255, 255);
     pdf.setFontSize(6);
     pdf.setFont('helvetica', 'bold');
+    // Determine header text based on email type
+    const email = account.email.toLowerCase();
+    const isGoogle = email.includes('@gmail.com') || email.includes('@googlemail.com');
+    const headerText = isGoogle ? 'GOOGLE ID - USA ACCOUNT' : 'APPLE ID - USA ACCOUNT';
     // Center vertically: headerY + (headerHeight / 2) + small offset for text baseline
-    pdf.text('APPLE ID - USA ACCOUNT', width / 2, headerY + (headerHeight / 2) + 2, { align: 'center' });
+    pdf.text(headerText, width / 2, headerY + (headerHeight / 2) + 2, { align: 'center' });
 
     // Content area starts after header - INCREASED SPACING (5mm gap)
     const contentY = headerY + headerHeight + 5;
@@ -105,7 +115,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
 
     // Generate and add real QR code
     try {
-        const qrDataURL = await generateQRDataURL(account, websiteDomain);
+        const qrDataURL = await generateQRDataURL(account, websiteDomain, cardColor, customLogo);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
     } catch (error) {
         // Fallback: draw empty QR placeholder box

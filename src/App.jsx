@@ -366,7 +366,7 @@ function App() {
                                 </div>
                             </Card.Header>
                             <Card.Body style={{ padding: 0 }}>
-                                <AccountCard account={selectedAccount} customLogo={customLogo} />
+                                <AccountCard account={selectedAccount} customLogo={customLogo} cardColor={cardColor} />
                             </Card.Body>
                         </Card>
 

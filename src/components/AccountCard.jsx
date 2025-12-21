@@ -5,16 +5,18 @@ import { QRCodeSVG } from 'qrcode.react';
 const DEFAULT_DOMAIN = 'http://localhost:5173/view';
 
 /**
- * Generate QR code value with account data and website domain
+ * Generate QR code value with account data, website domain, cardColor and customLogo
  */
-const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN) => {
+const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', customLogo = null) => {
     const accountData = {
         sn: account.serialNumber,
         email: account.email,
         pass: account.password,
         name: `${account.firstName} ${account.lastName}`,
         dob: account.birthday,
-        id: account.accountId
+        id: account.accountId,
+        color: cardColor,
+        logo: customLogo ? customLogo.substring(0, 500) : null // Limit logo size for QR
     };
 
     // Encode account data as base64 in URL
@@ -30,7 +32,8 @@ const AccountCard = ({
     showQR = true,
     batchNumber = 1,
     customLogo = null,
-    websiteDomain = DEFAULT_DOMAIN
+    websiteDomain = DEFAULT_DOMAIN,
+    cardColor = 'blue'
 }) => {
     if (!account) {
         return (
@@ -46,11 +49,16 @@ const AccountCard = ({
         );
     }
 
+    // Determine header text based on email type
+    const emailLower = account.email.toLowerCase();
+    const isGoogle = emailLower.includes('@gmail.com') || emailLower.includes('@googlemail.com');
+    const headerText = isGoogle ? 'GOOGLE ID - USA ACCOUNT' : 'APPLE ID - USA ACCOUNT';
+
     return (
         <div className="account-card-preview apple-style" id="account-card-preview">
-            {/* Blue Header */}
+            {/* Dynamic Header based on email type */}
             <div className="apple-card-header">
-                <span>APPLE ID - USA ACCOUNT</span>
+                <span>{headerText}</span>
             </div>
 
             {/* Main Content Area */}
@@ -59,7 +67,7 @@ const AccountCard = ({
                 <div className="apple-card-qr-section">
                     {showQR && (
                         <QRCodeSVG
-                            value={generateQRValue(account, websiteDomain)}
+                            value={generateQRValue(account, websiteDomain, cardColor, customLogo)}
                             size={100}
                             level="M"
                             bgColor="transparent"
