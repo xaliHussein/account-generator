@@ -5,9 +5,10 @@ import { QRCodeSVG } from 'qrcode.react';
 const DEFAULT_DOMAIN = 'http://localhost:5173/view';
 
 /**
- * Generate QR code value with account data, website domain, cardColor and customLogo
+ * Generate QR code value with account data, website domain, and cardColor
+ * Note: customLogo is NOT included as base64 images are too large for QR codes
  */
-const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', customLogo = null) => {
+const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
     const accountData = {
         sn: account.serialNumber,
         email: account.email,
@@ -15,8 +16,7 @@ const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'b
         name: `${account.firstName} ${account.lastName}`,
         dob: account.birthday,
         id: account.accountId,
-        color: cardColor,
-        logo: customLogo ? customLogo.substring(0, 500) : null // Limit logo size for QR
+        color: cardColor
     };
 
     // Encode account data as base64 in URL
@@ -67,7 +67,7 @@ const AccountCard = ({
                 <div className="apple-card-qr-section">
                     {showQR && (
                         <QRCodeSVG
-                            value={generateQRValue(account, websiteDomain, cardColor, customLogo)}
+                            value={generateQRValue(account, websiteDomain, cardColor)}
                             size={100}
                             level="M"
                             bgColor="transparent"

@@ -15,9 +15,9 @@ const CARD_COLORS = {
  * @param {Object} account - Account data
  * @param {string} websiteDomain - Base URL for QR code
  * @param {string} cardColor - Card color: 'blue' or 'black'
- * @param {string} customLogo - Optional base64 custom logo
+ * Note: customLogo is NOT included as base64 images are too large for QR codes
  */
-const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', customLogo = null) => {
+const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
     const accountData = {
         sn: account.serialNumber,
         email: account.email,
@@ -25,8 +25,7 @@ const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardCo
         name: `${account.firstName} ${account.lastName}`,
         dob: account.birthday,
         id: account.accountId,
-        color: cardColor,
-        logo: customLogo ? customLogo.substring(0, 500) : null // Limit logo data size for QR
+        color: cardColor
     };
 
     // Encode account data as base64 in URL
@@ -115,7 +114,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
 
     // Generate and add real QR code
     try {
-        const qrDataURL = await generateQRDataURL(account, websiteDomain, cardColor, customLogo);
+        const qrDataURL = await generateQRDataURL(account, websiteDomain, cardColor);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
     } catch (error) {
         // Fallback: draw empty QR placeholder box
