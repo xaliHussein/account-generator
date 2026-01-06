@@ -1,28 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { encryptData } from '../services/encryption';
 
-// Default website domain for QR codes
-const DEFAULT_DOMAIN = 'http://localhost:5173/view';
-
-/**
- * Generate QR code value with account data, website domain, and cardColor
- * Note: customLogo is NOT included as base64 images are too large for QR codes
- */
-const generateQRValue = (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
-    const accountData = {
-        sn: account.serialNumber,
-        email: account.email,
-        pass: account.password,
-        name: `${account.firstName} ${account.lastName}`,
-        dob: account.birthday,
-        id: account.accountId,
-        color: cardColor
-    };
-
-    // Encode account data as base64 in URL
-    const base64Data = btoa(JSON.stringify(accountData));
-    return `${websiteDomain}?data=${encodeURIComponent(base64Data)}`;
-};
+// Default website domain for QR codes (GitHub Pages with hash routing)
+const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
 
 /**
  * Account card preview component - Apple ID style matching PDF output
@@ -35,6 +16,40 @@ const AccountCard = ({
     websiteDomain = DEFAULT_DOMAIN,
     cardColor = 'blue'
 }) => {
+    const [qrValue, setQrValue] = useState('');
+
+    // Generate encrypted QR value when account or settings change
+    useEffect(() => {
+        const generateEncryptedQR = async () => {
+            if (!account) {
+                setQrValue('');
+                return;
+            }
+
+            const accountData = {
+                sn: account.serialNumber,
+                email: account.email,
+                pass: account.password,
+                name: `${account.firstName} ${account.lastName}`,
+                firstName: account.firstName,
+                lastName: account.lastName,
+                dob: account.birthday,
+                id: account.accountId,
+                color: cardColor
+            };
+
+            try {
+                const encryptedData = await encryptData(accountData);
+                setQrValue(`${websiteDomain}?data=${encodeURIComponent(encryptedData)}`);
+            } catch (error) {
+                console.error('Failed to generate QR value:', error);
+                setQrValue('');
+            }
+        };
+
+        generateEncryptedQR();
+    }, [account, websiteDomain, cardColor]);
+
     if (!account) {
         return (
             <div className="account-card-preview" style={{
@@ -65,14 +80,19 @@ const AccountCard = ({
             <div className="apple-card-content">
                 {/* Left side - QR Code */}
                 <div className="apple-card-qr-section">
-                    {showQR && (
+                    {showQR && qrValue && (
                         <QRCodeSVG
-                            value={generateQRValue(account, websiteDomain, cardColor)}
+                            value={qrValue}
                             size={100}
                             level="M"
                             bgColor="transparent"
                             fgColor="#000000"
                         />
+                    )}
+                    {showQR && !qrValue && (
+                        <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                            Loading...
+                        </div>
                     )}
                 </div>
 

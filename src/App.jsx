@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import GeneratorControls from './components/GeneratorControls';
 import AccountCard from './components/AccountCard';
+import CardBack from './components/CardBack';
 import AccountsList from './components/AccountsList';
 import OperationLog from './components/OperationLog';
 import ExportControls from './components/ExportControls';
@@ -13,6 +14,7 @@ import Modal from './components/ui/Modal';
 import Button from './components/ui/Button';
 import Card from './components/ui/Card';
 import ToastContainer from './components/ui/Toast';
+import { logout } from './components/LoginPage';
 
 // Hooks
 import useAccounts from './hooks/useAccounts';
@@ -21,11 +23,11 @@ import useToast from './hooks/useToast';
 
 // Services
 import { generateAccounts } from './services/accountGenerator';
-import { downloadAccountPDF } from './services/pdfGenerator';
+import { downloadAccountPDF, downloadCardBackPDF } from './services/pdfGenerator';
 import { downloadAccountsZip, exportAccountsAsJSON, exportAccountsAsCSV } from './services/zipExporter';
 
 // Icons
-import { Eye, AlertTriangle, Trash2, Upload, X, Settings } from 'lucide-react';
+import { Eye, AlertTriangle, Trash2, Upload, X, Settings, LogOut, Download } from 'lucide-react';
 
 /**
  * Main Application Component
@@ -47,8 +49,10 @@ function App() {
     const [deleteModal, setDeleteModal] = useState({ open: false, accountId: null });
     const [clearAllModal, setClearAllModal] = useState(false);
     const [customLogo, setCustomLogo] = useState(null);
+    const [cardBackLogo, setCardBackLogo] = useState(null); // Separate logo for card back
     const [cardColor, setCardColor] = useState('blue'); // 'blue' or 'black'
     const [emailType, setEmailType] = useState('random'); // 'random', 'icloud', or 'gmail'
+    const [accountIdType, setAccountIdType] = useState('apple'); // 'apple' or 'google'
 
     // Custom hooks
     const {
@@ -167,7 +171,7 @@ function App() {
         try {
             await downloadAccountsZip(accounts, (progress) => {
                 setExportProgress(progress);
-            }, customLogo, cardColor);
+            }, customLogo, cardColor, cardBackLogo);
 
             logDownload(accounts.length);
             toast.success(
@@ -214,13 +218,13 @@ function App() {
      */
     const handleDownloadSingle = useCallback(async (account) => {
         try {
-            await downloadAccountPDF(account, 1, customLogo, undefined, cardColor);
+            await downloadAccountPDF(account, 1, customLogo, undefined, cardColor, cardBackLogo);
             logDownload(1);
             toast.success('PDF Downloaded', `Account card for ${account.username} saved`);
         } catch (error) {
             toast.error('Download Failed', error.message);
         }
-    }, [logDownload, toast, customLogo, cardColor]);
+    }, [logDownload, toast, customLogo, cardColor, cardBackLogo]);
 
     /**
      * Handle copy action
@@ -274,11 +278,49 @@ function App() {
     return (
         <div className="app-container">
             {/* Header with stats */}
-            <Header
-                totalAccounts={totalAccounts}
-                todayCount={todayCount}
-                successRate={successRate}
-            />
+            {/* Header with Logout Button */}
+            <div style={{ position: 'relative' }}>
+                <Header
+                    totalAccounts={totalAccounts}
+                    todayCount={todayCount}
+                    successRate={successRate}
+                />
+                <button
+                    onClick={() => {
+                        logout();
+                        window.location.reload();
+                    }}
+                    style={{
+                        position: 'absolute',
+                        top: 'var(--spacing-md)',
+                        right: 'var(--spacing-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-xs)',
+                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                        border: '1px solid var(--border-color-strong)',
+                        borderRadius: 'var(--border-radius-md)',
+                        background: 'var(--color-bg-secondary)',
+                        color: 'var(--color-text-secondary)',
+                        fontSize: 'var(--font-size-sm)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={(e) => {
+                        e.currentTarget.style.background = 'var(--color-accent-red)';
+                        e.currentTarget.style.color = 'white';
+                        e.currentTarget.style.borderColor = 'var(--color-accent-red)';
+                    }}
+                    onMouseOut={(e) => {
+                        e.currentTarget.style.background = 'var(--color-bg-secondary)';
+                        e.currentTarget.style.color = 'var(--color-text-secondary)';
+                        e.currentTarget.style.borderColor = 'var(--border-color-strong)';
+                    }}
+                >
+                    <LogOut size={14} />
+                    Logout
+                </button>
+            </div>
 
             {/* Main content */}
             <main className="main-content">
@@ -370,6 +412,102 @@ function App() {
                             </Card.Body>
                         </Card>
 
+                        {/* Card Back Preview */}
+                        <Card hover={false}>
+                            <Card.Header>
+                                <Eye size={18} style={{ color: 'var(--color-accent-purple)' }} />
+                                <span>Card Back Preview</span>
+                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
+                                    {/* Upload Logo Button */}
+                                    <label
+                                        htmlFor="card-back-logo-upload"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--spacing-xs)',
+                                            padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                            background: 'var(--color-bg-tertiary)',
+                                            borderRadius: 'var(--border-radius-sm)',
+                                            cursor: 'pointer',
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'var(--color-text-secondary)',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <Upload size={14} />
+                                        {cardBackLogo ? 'Change' : 'Upload'}
+                                    </label>
+                                    <input
+                                        type="file"
+                                        id="card-back-logo-upload"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                                if (!file.type.startsWith('image/')) {
+                                                    toast.error('Invalid File', 'Please upload an image file');
+                                                    return;
+                                                }
+                                                if (file.size > 5 * 1024 * 1024) {
+                                                    toast.error('File Too Large', 'Image must be under 5MB');
+                                                    return;
+                                                }
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    setCardBackLogo(ev.target.result);
+                                                    toast.success('Back Logo Uploaded', 'Card back logo has been set');
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                    {/* Remove Logo Button */}
+                                    {cardBackLogo && (
+                                        <button
+                                            onClick={() => setCardBackLogo(null)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: 'var(--spacing-xs)',
+                                                background: 'rgba(255, 59, 48, 0.1)',
+                                                border: 'none',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                cursor: 'pointer',
+                                                color: 'var(--color-accent-red)'
+                                            }}
+                                            title="Remove logo"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                    {/* Download Card Back Button */}
+                                    <button
+                                        onClick={() => downloadCardBackPDF(1, cardBackLogo, cardColor, accountIdType)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--spacing-xs)',
+                                            padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                            background: 'var(--color-accent-green)',
+                                            border: 'none',
+                                            borderRadius: 'var(--border-radius-sm)',
+                                            cursor: 'pointer',
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'white'
+                                        }}
+                                        title="Download card back as PDF"
+                                    >
+                                        <Download size={12} />
+                                        Download
+                                    </button>
+                                </div>
+                            </Card.Header>
+                            <Card.Body style={{ padding: 'var(--spacing-md)' }}>
+                                <CardBack batchNumber={1} customLogo={cardBackLogo} cardColor={cardColor} accountIdType={accountIdType} />
+                            </Card.Body>
+                        </Card>
+
                         {/* Card Settings */}
                         <Card hover={false}>
                             <Card.Header>
@@ -423,6 +561,57 @@ function App() {
                                                 <span style={{ fontWeight: cardColor === 'black' ? 600 : 400 }}>Black</span>
                                             </button>
                                         </div>
+                                    </div>
+
+                                    {/* Account ID Type */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        <label style={{
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 'var(--font-weight-medium)',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>Card Back Account Type</label>
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                            <button
+                                                onClick={() => setAccountIdType('apple')}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: accountIdType === 'apple' ? '2px solid var(--color-accent-blue)' : '2px solid var(--border-color)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: accountIdType === 'apple' ? 'rgba(0, 136, 204, 0.15)' : 'var(--color-bg-secondary)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--spacing-sm)',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: accountIdType === 'apple' ? 600 : 400 }}>Apple ID</span>
+                                            </button>
+                                            <button
+                                                onClick={() => setAccountIdType('google')}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: accountIdType === 'google' ? '2px solid #EA4335' : '2px solid var(--border-color)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: accountIdType === 'google' ? 'rgba(234, 67, 53, 0.15)' : 'var(--color-bg-secondary)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--spacing-sm)',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: accountIdType === 'google' ? 600 : 400 }}>Google ID</span>
+                                            </button>
+                                        </div>
+                                        <span style={{
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'var(--color-text-tertiary)'
+                                        }}>
+                                            Changes the text on the card back
+                                        </span>
                                     </div>
 
                                     {/* Email Type */}

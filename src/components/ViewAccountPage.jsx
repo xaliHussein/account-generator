@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { decryptData } from '../services/encryption';
 
 // Color definitions matching the card colors
 const CARD_COLORS = {
@@ -9,29 +10,37 @@ const CARD_COLORS = {
 
 /**
  * View Account Page - Displays account information from QR code scan
- * URL format: /view?data=base64EncodedJson
+ * URL format: /view?data=encryptedBase64Data
  */
 const ViewAccountPage = () => {
     const [searchParams] = useSearchParams();
     const [accountData, setAccountData] = useState(null);
     const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const dataParam = searchParams.get('data');
+        const decodeData = async () => {
+            const dataParam = searchParams.get('data');
 
-        if (!dataParam) {
-            setError('No account data provided');
-            return;
-        }
+            if (!dataParam) {
+                setError('No account data provided');
+                setLoading(false);
+                return;
+            }
 
-        try {
-            const decodedData = atob(decodeURIComponent(dataParam));
-            const parsed = JSON.parse(decodedData);
-            setAccountData(parsed);
-        } catch (err) {
-            console.error('Failed to decode account data:', err);
-            setError('Invalid account data');
-        }
+            try {
+                // Decrypt the data using our encryption service
+                const decrypted = await decryptData(decodeURIComponent(dataParam));
+                setAccountData(decrypted);
+                setLoading(false);
+            } catch (err) {
+                console.error('Failed to decrypt account data:', err);
+                setError('Invalid or tampered data. This QR code cannot be verified.');
+                setLoading(false);
+            }
+        };
+
+        decodeData();
     }, [searchParams]);
 
     // Determine if email is iCloud or Gmail
@@ -46,6 +55,19 @@ const ViewAccountPage = () => {
         return { title: 'Apple ID Account', isApple: true }; // Default to Apple
     };
 
+    if (loading) {
+        return (
+            <div className="view-account-page">
+                <div className="view-account-container">
+                    <div className="view-account-loading">
+                        <div className="spinner"></div>
+                        <p>Decrypting account data...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (error) {
         return (
             <div className="view-account-page">
@@ -57,8 +79,11 @@ const ViewAccountPage = () => {
                             <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
                     </div>
-                    <h1>Error</h1>
+                    <h1>Security Error</h1>
                     <p>{error}</p>
+                    <p style={{ fontSize: '0.85em', color: '#888', marginTop: '1rem' }}>
+                        This data may have been modified or corrupted.
+                    </p>
                 </div>
             </div>
         );
@@ -79,7 +104,6 @@ const ViewAccountPage = () => {
 
     const { title, isApple } = getAccountType(accountData.email);
     const themeColor = CARD_COLORS[accountData.color] || CARD_COLORS.blue;
-    const hasCustomLogo = accountData.logo && accountData.logo.length > 0;
 
     return (
         <div className="view-account-page" style={{ '--theme-color': themeColor }}>
@@ -87,13 +111,7 @@ const ViewAccountPage = () => {
                 {/* Header */}
                 <div className="view-account-header" style={{ background: themeColor }}>
                     <div className="view-account-icon">
-                        {hasCustomLogo ? (
-                            <img
-                                src={accountData.logo}
-                                alt="Logo"
-                                style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover' }}
-                            />
-                        ) : isApple ? (
+                        {isApple ? (
                             <svg viewBox="0 0 24 24" width="48" height="48">
                                 <rect width="24" height="24" rx="5" fill={themeColor} />
                                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="white" />
@@ -109,12 +127,39 @@ const ViewAccountPage = () => {
                     <p className="view-account-subtitle" style={{ color: 'rgba(255,255,255,0.8)' }}>USA Account Credentials</p>
                 </div>
 
+                {/* Verified Badge */}
+                <div style={{ textAlign: 'center', marginTop: '-10px', marginBottom: '10px' }}>
+                    <span style={{
+                        background: '#22c55e',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600
+                    }}>
+                        ✓ VERIFIED & SECURE
+                    </span>
+                </div>
+
                 {/* Account Card */}
                 <div className="view-account-card">
                     {/* Name Section */}
                     <div className="view-account-section name-section">
                         <div className="view-account-name">{accountData.name}</div>
                         <div className="view-account-badge" style={{ background: themeColor }}>VERIFIED</div>
+                    </div>
+
+                    {/* Personal Info */}
+                    <div className="view-account-section">
+                        <div className="view-account-field">
+                            <label>First Name</label>
+                            <div className="view-account-value">{accountData.firstName || accountData.name?.split(' ')[0] || 'N/A'}</div>
+                        </div>
+
+                        <div className="view-account-field">
+                            <label>Last Name</label>
+                            <div className="view-account-value">{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'N/A'}</div>
+                        </div>
                     </div>
 
                     {/* Credentials */}
@@ -159,6 +204,7 @@ const ViewAccountPage = () => {
 
                 {/* Footer */}
                 <div className="view-account-footer">
+                    <p>🔒 This data is encrypted and tamper-proof.</p>
                     <p>Keep this information secure. Do not share with others.</p>
                 </div>
             </div>

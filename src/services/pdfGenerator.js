@@ -1,8 +1,9 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
+import { encryptData } from './encryption';
 
-// Default website domain for QR codes
-const DEFAULT_DOMAIN = 'http://localhost:5173/view';
+// Default website domain for QR codes (GitHub Pages with hash routing)
+const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
 
 // Card color options
 const CARD_COLORS = {
@@ -11,11 +12,10 @@ const CARD_COLORS = {
 };
 
 /**
- * Generate QR code data URL from account data
+ * Generate QR code data URL from account data (encrypted)
  * @param {Object} account - Account data
  * @param {string} websiteDomain - Base URL for QR code
  * @param {string} cardColor - Card color: 'blue' or 'black'
- * Note: customLogo is NOT included as base64 images are too large for QR codes
  */
 const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
     const accountData = {
@@ -23,14 +23,16 @@ const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardCo
         email: account.email,
         pass: account.password,
         name: `${account.firstName} ${account.lastName}`,
+        firstName: account.firstName,
+        lastName: account.lastName,
         dob: account.birthday,
         id: account.accountId,
         color: cardColor
     };
 
-    // Encode account data as base64 in URL
-    const base64Data = btoa(JSON.stringify(accountData));
-    const qrValue = `${websiteDomain}?data=${encodeURIComponent(base64Data)}`;
+    // Encrypt account data for security
+    const encryptedData = await encryptData(accountData);
+    const qrValue = `${websiteDomain}?data=${encodeURIComponent(encryptedData)}`;
 
     try {
         const dataURL = await QRCode.toDataURL(qrValue, {
@@ -51,15 +53,18 @@ const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardCo
 
 /**
  * Generate a PDF for a single account card - Standard CR80 card size
+ * Includes both front and back of the card
  */
-export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
+export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
     const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: [53.98, 85.6], // Standard CR80 credit card size (height, width)
     });
 
+    // Generate front card content only (card back is downloaded separately)
     await generateCardContent(pdf, account, batchNumber, customLogo, websiteDomain, cardColor);
+
     return pdf;
 };
 
@@ -247,6 +252,97 @@ const drawDefaultIcon = (pdf, iconX, iconY, iconSize) => {
 };
 
 /**
+ * Generate the card back content
+ * Design: Centered logo, APPLE ID, USA ACCOUNT, VIP-BATCH badge
+ */
+const generateCardBackContent = async (pdf, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple') => {
+    const width = pdf.internal.pageSize.getWidth();
+    const height = pdf.internal.pageSize.getHeight();
+    const cardPadding = 2;
+    const cornerRadius = 3;
+
+    // Get border color based on card color - using black to match credentials box border
+    const borderColor = cardColor === 'black' ? { r: 30, g: 30, b: 30 } : { r: 0, g: 0, b: 0 };
+
+    // Card background with rounded corners
+    pdf.setFillColor(255, 255, 255);
+    pdf.roundedRect(cardPadding, cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'F');
+
+    // Card border with rounded corners
+    pdf.setDrawColor(borderColor.r, borderColor.g, borderColor.b);
+    pdf.setLineWidth(0.8);
+    pdf.roundedRect(cardPadding, cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'S');
+
+    // Center calculations
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Logo - centered at top portion
+    const logoSize = 18;
+    const logoX = centerX - logoSize / 2;
+    const logoY = centerY - 18;
+
+    if (customLogo) {
+        try {
+            pdf.addImage(customLogo, 'PNG', logoX, logoY, logoSize, logoSize);
+        } catch (error) {
+            // Fallback to default icon
+            drawLargeAppStoreIcon(pdf, logoX, logoY, logoSize);
+        }
+    } else {
+        drawLargeAppStoreIcon(pdf, logoX, logoY, logoSize);
+    }
+
+    // Account ID type text (APPLE ID or GOOGLE ID)
+    const accountIdText = accountIdType === 'google' ? 'GOOGLE ID' : 'APPLE ID';
+    pdf.setTextColor(29, 29, 31);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(accountIdText, centerX, centerY + 6, { align: 'center' });
+
+    // USA ACCOUNT text
+    pdf.setTextColor(134, 134, 139);
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('USA ACCOUNT', centerX, centerY + 11, { align: 'center' });
+
+    // VIP-BATCH badge
+    const badgeText = `VIP-BATCH-${String(batchNumber).padStart(2, '0')}`;
+    const badgeWidth = 24;
+    const badgeHeight = 5;
+    const badgeX = centerX - badgeWidth / 2;
+    const badgeY = centerY + 16;
+
+    pdf.setDrawColor(29, 29, 31);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1, 1, 'S');
+
+    pdf.setTextColor(29, 29, 31);
+    pdf.setFontSize(5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(badgeText, centerX, badgeY + 3.5, { align: 'center' });
+};
+
+/**
+ * Draw large App Store icon for card back
+ */
+const drawLargeAppStoreIcon = (pdf, x, y, size) => {
+    // Gradient-like blue background
+    pdf.setFillColor(0, 136, 204);
+    pdf.roundedRect(x, y, size, size, 3, 3, 'F');
+
+    // Add gradient effect overlay
+    pdf.setFillColor(24, 191, 255);
+    pdf.roundedRect(x, y, size, size * 0.4, 3, 0, 'F');
+
+    // Simple 'A' for App Store
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('A', x + size / 2, y + size / 2 + 3, { align: 'center' });
+};
+
+/**
  * Generate PDFs for multiple accounts and return as blob
  */
 export const generateMultipleAccountsPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
@@ -279,13 +375,28 @@ export const generateMultipleAccountsPDF = async (accounts, onProgress, batchNum
 /**
  * Download a single account as PDF
  */
-export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
-    const pdf = await generateAccountPDF(account, batchNumber, customLogo, websiteDomain, cardColor);
+export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
+    const pdf = await generateAccountPDF(account, batchNumber, customLogo, websiteDomain, cardColor, cardBackLogo, accountIdType);
     pdf.save(`account-${account.username}-${account.serialNumber}.pdf`);
+};
+
+/**
+ * Generate and download card back only as a separate PDF
+ */
+export const downloadCardBackPDF = async (batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple') => {
+    const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [53.98, 85.6], // Standard CR80 credit card size (height, width)
+    });
+
+    await generateCardBackContent(pdf, batchNumber, customLogo, cardColor, accountIdType);
+    pdf.save(`card-back-${accountIdType}-batch-${String(batchNumber).padStart(2, '0')}.pdf`);
 };
 
 export default {
     generateAccountPDF,
     generateMultipleAccountsPDF,
     downloadAccountPDF,
+    downloadCardBackPDF,
 };

@@ -5,7 +5,7 @@ import { generateAccountPDF } from './pdfGenerator';
 /**
  * Export multiple accounts as individual PDFs in a ZIP archive
  */
-export const exportAccountsAsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue') => {
+export const exportAccountsAsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', cardBackLogo = null) => {
     const zip = new JSZip();
     const folder = zip.folder('accounts');
 
@@ -18,7 +18,7 @@ export const exportAccountsAsZip = async (accounts, onProgress, customLogo = nul
 
         await Promise.all(
             batch.map(async (account, index) => {
-                const pdf = await generateAccountPDF(account, 1, customLogo, undefined, cardColor);
+                const pdf = await generateAccountPDF(account, 1, customLogo, undefined, cardColor, cardBackLogo);
                 const pdfBlob = pdf.output('arraybuffer');
                 const fileName = `${String(i + index + 1).padStart(4, '0')}_${account.username}_${account.accountId.slice(-8)}.pdf`;
                 folder.file(fileName, pdfBlob);
@@ -67,8 +67,8 @@ export const exportAccountsAsZip = async (accounts, onProgress, customLogo = nul
 /**
  * Download accounts as ZIP file
  */
-export const downloadAccountsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue') => {
-    const zipBlob = await exportAccountsAsZip(accounts, onProgress, customLogo, cardColor);
+export const downloadAccountsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', cardBackLogo = null) => {
+    const zipBlob = await exportAccountsAsZip(accounts, onProgress, customLogo, cardColor, cardBackLogo);
     const timestamp = new Date().toISOString().slice(0, 10);
     saveAs(zipBlob, `accounts_${timestamp}_${accounts.length}-cards.zip`);
 };
