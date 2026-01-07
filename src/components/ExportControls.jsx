@@ -5,7 +5,8 @@ import {
     FileJson,
     FileSpreadsheet,
     Trash2,
-    Loader2
+    Loader2,
+    Printer
 } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
@@ -17,6 +18,7 @@ import ProgressBar from './ui/ProgressBar';
 const ExportControls = ({
     accountsCount,
     onExportZip,
+    onExportPrintSheet,
     onExportJSON,
     onExportCSV,
     onClearAll,
@@ -61,6 +63,29 @@ const ExportControls = ({
                             : `Download All as ZIP (${accountsCount} PDFs)`
                         }
                     </Button>
+
+                    {/* Print Sheet PDF export */}
+                    <Button
+                        variant="primary"
+                        fullWidth
+                        icon={isExporting ? Loader2 : Printer}
+                        onClick={onExportPrintSheet}
+                        disabled={disabled || isExporting}
+                        loading={isExporting}
+                    >
+                        {isExporting
+                            ? 'Creating Print Sheet...'
+                            : `Download Print Sheet PDF (${accountsCount} cards)`
+                        }
+                    </Button>
+                    <span style={{
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--color-text-tertiary)',
+                        textAlign: 'center',
+                        marginTop: '-8px'
+                    }}>
+                        Optimized for 60cm × 90cm printing plate (~100 cards/page)
+                    </span>
 
                     {/* Other exports */}
                     <div style={{
@@ -122,9 +147,12 @@ const getExportStatusMessage = (progress) => {
             return 'Compressing ZIP archive...';
         case 'finalizing':
             return 'Finalizing download...';
+        case 'creating-sheet':
+            return `Adding cards to print sheet... (${progress.current}/${progress.total})`;
         default:
             return `Processing... (${progress.current}/${progress.total})`;
     }
 };
 
 export default ExportControls;
+

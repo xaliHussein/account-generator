@@ -5,6 +5,13 @@ import { encryptData } from './encryption';
 // Default website domain for QR codes (GitHub Pages with hash routing)
 const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
 
+// Dynamic domain generation - for localhost testing, uncomment below and comment the line above
+// const getDefaultDomain = () => {
+//     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+//     return `${origin}/#/view`;
+// };
+// const DEFAULT_DOMAIN = getDefaultDomain();
+
 // Card color options
 const CARD_COLORS = {
     blue: { r: 0, g: 136, b: 204 },
@@ -160,7 +167,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
     pdf.setFontSize(5.5); // Smaller font to fit full email
     pdf.setFont('helvetica', 'normal');
     // Display full email without truncation
-    pdf.text(account.email, boxX + labelWidth + 1.5, boxY + 4);
+    pdf.text(String(account.email || ''), boxX + labelWidth + 1.5, boxY + 4);
 
     // PASS row
     pdf.setFontSize(5);
@@ -169,8 +176,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
 
     pdf.setFontSize(5.5); // Same font size as email
     pdf.setFont('helvetica', 'normal');
-    // const passDisplay = account.password.length > 16 ? account.password.substring(0, 15) + '...' : account.password;
-    pdf.text(account.password, boxX + labelWidth + 1.5, boxY + rowHeight + 4);
+    pdf.text(String(account.password || ''), boxX + labelWidth + 1.5, boxY + rowHeight + 4);
 
     // Name and DOB section
     const nameY = boxY + boxHeight + 4;
@@ -178,15 +184,17 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(0, 0, 0);
-    pdf.text(`${account.firstName} ${account.lastName}`, boxX, nameY);
+    pdf.text(`${account.firstName || ''} ${account.lastName || ''}`, boxX, nameY);
 
     pdf.setFontSize(6);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(85, 85, 85);
-    pdf.text(`DOB: ${account.birthday}`, boxX, nameY + 4);
+    pdf.text(`DOB: ${account.birthday || ''}`, boxX, nameY + 4);
 
     // Bottom section - Serial Number (below QR code)
     const bottomY = height - cardPadding - 6;
+    // Use fallback serial number for legacy accounts
+    const serialNumber = account.serialNumber || generateFallbackSN(account.id);
 
     pdf.setFontSize(5);
     pdf.setFont('helvetica', 'normal');
@@ -196,7 +204,8 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
     pdf.setFontSize(6);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(0, 0, 0);
-    pdf.text(account.serialNumber, qrX, bottomY + 4);
+    pdf.text(serialNumber, qrX, bottomY + 4);
+
 
     // Right side bottom: Logo above VIP Badge
     const iconSize = 12;
@@ -394,9 +403,297 @@ export const downloadCardBackPDF = async (batchNumber = 1, customLogo = null, ca
     pdf.save(`card-back-${accountIdType}-batch-${String(batchNumber).padStart(2, '0')}.pdf`);
 };
 
+/**
+ * Print sheet constants for 60cm x 90cm printing plate
+ * Card size: 85.6mm x 53.98mm (CR80 standard)
+ */
+const PRINT_SHEET = {
+    width: 900,  // 90cm in mm (landscape)
+    height: 600, // 60cm in mm
+    cardWidth: 85.6,
+    cardHeight: 53.98,
+    margin: 2,   // Small margin between cards
+    get cardsPerRow() { return Math.floor(this.width / (this.cardWidth + this.margin)); },    // ~10 cards
+    get cardsPerCol() { return Math.floor(this.height / (this.cardHeight + this.margin)); },  // ~10 cards
+    get cardsPerPage() { return this.cardsPerRow * this.cardsPerCol; }  // ~100 cards
+};
+
+/**
+ * Generate a print sheet PDF with multiple cards arranged on 60cm x 90cm pages
+ * Optimized for bulk printing on professional card printers
+ * 
+ * @param {Array} accounts - Array of account objects
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} websiteDomain - Base URL for QR codes
+ * @param {string} cardColor - Card color theme
+ * @returns {Promise<Blob>} PDF as blob
+ */
+export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
+    const { width, height, cardWidth, cardHeight, margin, cardsPerRow, cardsPerCol, cardsPerPage } = PRINT_SHEET;
+    
+    // Calculate starting positions to center the grid on the page
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const startX = (width - gridWidth) / 2;
+    const startY = (height - gridHeight) / 2;
+
+    const totalPages = Math.ceil(accounts.length / cardsPerPage);
+    
+    const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [height, width], // 600mm x 900mm (height, width for landscape)
+    });
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        if (pageIndex > 0) {
+            pdf.addPage();
+        }
+
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, accounts.length);
+        const accountsOnPage = accounts.slice(pageStartIndex, pageEndIndex);
+
+        for (let i = 0; i < accountsOnPage.length; i++) {
+            const account = accountsOnPage[i];
+            const globalIndex = pageStartIndex + i;
+
+            // Calculate position in grid
+            const col = i % cardsPerRow;
+            const row = Math.floor(i / cardsPerRow);
+            const x = startX + col * (cardWidth + margin);
+            const y = startY + row * (cardHeight + margin);
+
+            // Draw card at calculated position
+            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, websiteDomain, cardColor);
+
+            if (onProgress) {
+                onProgress({
+                    current: globalIndex + 1,
+                    total: accounts.length,
+                    percentage: Math.round(((globalIndex + 1) / accounts.length) * 100),
+                    status: 'creating-sheet'
+                });
+                
+                // Yield to event loop every 5 cards to allow UI to update
+                if ((globalIndex + 1) % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+        }
+    }
+
+    return pdf.output('blob');
+};
+
+/**
+ * Draw a single card at a specific position on the print sheet
+ */
+const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, websiteDomain, cardColor) => {
+    const cardPadding = 1.5;
+    const cornerRadius = 2.5;
+    const CARD_COLORS = {
+        blue: { r: 0, g: 136, b: 204 },
+        black: { r: 30, g: 30, b: 30 }
+    };
+    const headerColor = CARD_COLORS[cardColor] || CARD_COLORS.blue;
+
+    // Card background with rounded corners
+    pdf.setFillColor(255, 255, 255);
+    pdf.roundedRect(x + cardPadding, y + cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'F');
+
+    // Card border
+    pdf.setDrawColor(180, 180, 180);
+    pdf.setLineWidth(0.2);
+    pdf.roundedRect(x + cardPadding, y + cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'S');
+
+    // Header bar
+    const headerHeight = 3.5;
+    const headerY = y + cardPadding;
+    pdf.setFillColor(headerColor.r, headerColor.g, headerColor.b);
+    pdf.roundedRect(x + cardPadding, headerY, width - cardPadding * 2, headerHeight + cornerRadius, cornerRadius, cornerRadius, 'F');
+    pdf.rect(x + cardPadding, headerY + headerHeight - 0.5, width - cardPadding * 2, cornerRadius + 0.5, 'F');
+
+    // Header text
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(5);
+    pdf.setFont('helvetica', 'bold');
+    const email = account.email.toLowerCase();
+    const isGoogle = email.includes('@gmail.com') || email.includes('@googlemail.com');
+    const headerText = isGoogle ? 'GOOGLE ID - USA ACCOUNT' : 'APPLE ID - USA ACCOUNT';
+    pdf.text(headerText, x + width / 2, headerY + (headerHeight / 2) + 1.5, { align: 'center' });
+
+    // Content area
+    const contentY = headerY + headerHeight + 4;
+    const qrSize = 17;
+    const qrX = x + cardPadding + 2.5;
+    const qrY = contentY;
+
+    // QR Code
+    try {
+        const accountData = {
+            sn: account.serialNumber,
+            email: account.email,
+            pass: account.password,
+            name: `${account.firstName} ${account.lastName}`,
+            firstName: account.firstName,
+            lastName: account.lastName,
+            dob: account.birthday,
+            id: account.accountId,
+            color: cardColor
+        };
+        const encryptedData = await encryptData(accountData);
+        const qrValue = `${websiteDomain}?data=${encodeURIComponent(encryptedData)}`;
+        const qrDataURL = await QRCode.toDataURL(qrValue, {
+            width: 150,
+            margin: 1,
+            color: { dark: '#000000', light: '#FFFFFF' },
+            errorCorrectionLevel: 'M'
+        });
+        pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
+    } catch (error) {
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.2);
+        pdf.rect(qrX, qrY, qrSize, qrSize, 'S');
+    }
+
+    // Credentials box
+    const boxX = qrX + qrSize + 2.5;
+    const boxY = contentY;
+    const boxWidth = x + width - boxX - cardPadding - 2.5;
+    const rowHeight = 5;
+    const boxHeight = rowHeight * 2;
+
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.roundedRect(boxX, boxY, boxWidth, boxHeight, 0.8, 0.8, 'S');
+    pdf.setLineWidth(0.15);
+    pdf.line(boxX, boxY + rowHeight, boxX + boxWidth, boxY + rowHeight);
+
+    const labelWidth = 8;
+    pdf.line(boxX + labelWidth, boxY, boxX + labelWidth, boxY + boxHeight);
+
+    // EMAIL row
+    pdf.setFontSize(4);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('EMAIL', boxX + 1.2, boxY + 3.2);
+    pdf.setFontSize(4.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(String(account.email || ''), boxX + labelWidth + 1.2, boxY + 3.2);
+
+    // PASS row
+    pdf.setFontSize(4);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('PASS', boxX + 1.2, boxY + rowHeight + 3.2);
+    pdf.setFontSize(4.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(String(account.password || ''), boxX + labelWidth + 1.2, boxY + rowHeight + 3.2);
+
+    // Name and DOB
+    const nameY = boxY + boxHeight + 3;
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(`${account.firstName || ''} ${account.lastName || ''}`, boxX, nameY);
+    pdf.setFontSize(5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(85, 85, 85);
+    pdf.text(`DOB: ${account.birthday || ''}`, boxX, nameY + 3);
+
+    // VIP Badge dimensions (calculated first so we can center logo above it)
+    const badgeWidth = 18;
+    const badgeHeight = 3.5;
+    const badgeX = x + width - cardPadding - badgeWidth - 3;
+    const badgeY = y + height - cardPadding - badgeHeight - 3;
+
+    // Logo/Icon above VIP Badge - centered above the badge
+    const iconSize = 10;
+    const iconX = badgeX + (badgeWidth - iconSize) / 2; // Center horizontally with badge
+    const iconY = badgeY - iconSize - 2; // 2mm gap above the badge
+    
+    if (customLogo) {
+        try {
+            pdf.addImage(customLogo, 'PNG', iconX, iconY, iconSize, iconSize);
+        } catch (error) {
+            // Fallback to default icon
+            drawDefaultIconSmall(pdf, iconX, iconY, iconSize);
+        }
+    } else {
+        drawDefaultIconSmall(pdf, iconX, iconY, iconSize);
+    }
+
+    // VIP Badge
+    const badgeText = `VIP-BATCH-${String(batchNumber).padStart(2, '0')}`;
+    
+    pdf.setFillColor(0, 0, 0);
+    pdf.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.2, 1.2, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(4);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(badgeText, badgeX + badgeWidth / 2, badgeY + 2.4, { align: 'center' });
+
+    // Serial Number at bottom (drawn last to ensure it's not overwritten)
+    const bottomY = y + height - cardPadding - 5;
+    // Generate a fallback serial number for legacy accounts that don't have one
+    const serialNumber = account.serialNumber || generateFallbackSN(account.id);
+    
+    pdf.setFontSize(4);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(136, 136, 136);
+    pdf.text('SN:', qrX, bottomY);
+    pdf.setFontSize(5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(serialNumber, qrX, bottomY + 3);
+};
+
+/**
+ * Generate a fallback serial number from account ID for legacy accounts
+ */
+const generateFallbackSN = (accountId) => {
+    if (!accountId) return 'XXXXXXXXX';
+    // Use the first 9 characters of the UUID, uppercased
+    return accountId.replace(/-/g, '').substring(0, 9).toUpperCase();
+};
+
+/**
+ * Draw small default App Store icon for print sheet
+ */
+const drawDefaultIconSmall = (pdf, x, y, size) => {
+    pdf.setFillColor(0, 122, 255);
+    pdf.roundedRect(x, y, size, size, 1.5, 1.5, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(6);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('A', x + size / 2, y + size / 2 + 1.8, { align: 'center' });
+};
+
+/**
+ * Download print sheet PDF for bulk printing
+ */
+export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
+    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor);
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `print-sheet-${accounts.length}-cards-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
 export default {
     generateAccountPDF,
     generateMultipleAccountsPDF,
     downloadAccountPDF,
     downloadCardBackPDF,
+    generatePrintSheetPDF,
+    downloadPrintSheetPDF,
 };
+

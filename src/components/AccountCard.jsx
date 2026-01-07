@@ -5,6 +5,13 @@ import { encryptData } from '../services/encryption';
 // Default website domain for QR codes (GitHub Pages with hash routing)
 const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
 
+// Dynamic domain generation - for localhost testing, uncomment below and comment the line above
+// const getDefaultDomain = () => {
+//     const origin = typeof window !== 'undefined' ? window.location.origin : '';
+//     return `${origin}/#/view`;
+// };
+// const DEFAULT_DOMAIN = getDefaultDomain();
+
 /**
  * Account card preview component - Apple ID style matching PDF output
  */

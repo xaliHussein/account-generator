@@ -23,7 +23,7 @@ import useToast from './hooks/useToast';
 
 // Services
 import { generateAccounts } from './services/accountGenerator';
-import { downloadAccountPDF, downloadCardBackPDF } from './services/pdfGenerator';
+import { downloadAccountPDF, downloadCardBackPDF, downloadPrintSheetPDF } from './services/pdfGenerator';
 import { downloadAccountsZip, exportAccountsAsJSON, exportAccountsAsCSV } from './services/zipExporter';
 
 // Icons
@@ -212,6 +212,34 @@ function App() {
             toast.error('Export Failed', error.message);
         }
     }, [accounts, logExport, toast]);
+
+    /**
+     * Handle Print Sheet PDF export (60cm x 90cm printing plate)
+     */
+    const handleExportPrintSheet = useCallback(async () => {
+        if (accounts.length === 0) return;
+
+        setIsExporting(true);
+        setExportProgress({ current: 0, total: accounts.length, percentage: 0, status: 'creating-sheet' });
+
+        try {
+            await downloadPrintSheetPDF(accounts, (progress) => {
+                setExportProgress(progress);
+            }, 1, customLogo, undefined, cardColor);
+
+            logDownload(accounts.length);
+            toast.success(
+                'Print Sheet Ready!',
+                `Downloaded print sheet with ${accounts.length.toLocaleString()} cards`
+            );
+        } catch (error) {
+            console.error('Print sheet export failed:', error);
+            toast.error('Export Failed', error.message);
+        } finally {
+            setIsExporting(false);
+            setExportProgress(null);
+        }
+    }, [accounts, logDownload, toast, customLogo, cardColor]);
 
     /**
      * Handle single PDF download
@@ -654,6 +682,7 @@ function App() {
                         <ExportControls
                             accountsCount={accounts.length}
                             onExportZip={handleExportZip}
+                            onExportPrintSheet={handleExportPrintSheet}
                             onExportJSON={handleExportJSON}
                             onExportCSV={handleExportCSV}
                             onClearAll={handleClearAll}
