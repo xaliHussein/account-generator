@@ -1,16 +1,8 @@
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
-import { encryptData } from './encryption';
 
-// Default website domain for QR codes (GitHub Pages with hash routing)
-const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
-
-// Dynamic domain generation - for localhost testing, uncomment below and comment the line above
-// const getDefaultDomain = () => {
-//     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-//     return `${origin}/#/view`;
-// };
-// const DEFAULT_DOMAIN = getDefaultDomain();
+// Frontend base URL for QR codes - points to the view page
+const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
 
 // Card color options
 const CARD_COLORS = {
@@ -19,27 +11,19 @@ const CARD_COLORS = {
 };
 
 /**
- * Generate QR code data URL from account data (encrypted)
- * @param {Object} account - Account data
- * @param {string} websiteDomain - Base URL for QR code
- * @param {string} cardColor - Card color: 'blue' or 'black'
+ * Generate QR code data URL from account data
+ * Uses API endpoint with access token for security
+ * @param {Object} account - Account data (must include id and accessToken)
  */
-const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
-    const accountData = {
-        sn: account.serialNumber,
-        email: account.email,
-        pass: account.password,
-        name: `${account.firstName} ${account.lastName}`,
-        firstName: account.firstName,
-        lastName: account.lastName,
-        dob: account.birthday,
-        id: account.accountId,
-        color: cardColor
-    };
-
-    // Encrypt account data for security
-    const encryptedData = await encryptData(accountData);
-    const qrValue = `${websiteDomain}?data=${encodeURIComponent(encryptedData)}`;
+const generateQRDataURL = async (account) => {
+    // Build QR URL pointing to frontend view page with token
+    let qrValue;
+    if (account.id && account.accessToken) {
+        qrValue = `${FRONTEND_BASE_URL}/#/view?id=${account.id}&token=${account.accessToken}`;
+    } else {
+        // Fallback for legacy cards
+        qrValue = `${FRONTEND_BASE_URL}/#/view?id=${account.id}`;
+    }
 
     try {
         const dataURL = await QRCode.toDataURL(qrValue, {
@@ -62,7 +46,7 @@ const generateQRDataURL = async (account, websiteDomain = DEFAULT_DOMAIN, cardCo
  * Generate a PDF for a single account card - Standard CR80 card size
  * Includes both front and back of the card
  */
-export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
+export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
     const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -70,7 +54,7 @@ export const generateAccountPDF = async (account, batchNumber = 1, customLogo = 
     });
 
     // Generate front card content only (card back is downloaded separately)
-    await generateCardContent(pdf, account, batchNumber, customLogo, websiteDomain, cardColor);
+    await generateCardContent(pdf, account, batchNumber, customLogo, cardColor);
 
     return pdf;
 };
@@ -79,7 +63,7 @@ export const generateAccountPDF = async (account, batchNumber = 1, customLogo = 
  * Generate the card content matching the preview exactly
  * Standard CR80 card: 85.6mm x 53.98mm
  */
-const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
+const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = null, cardColor = 'blue') => {
     const width = pdf.internal.pageSize.getWidth();
     const height = pdf.internal.pageSize.getHeight();
     const cardPadding = 2; // Padding from edge to show rounded corners
@@ -126,7 +110,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
 
     // Generate and add real QR code
     try {
-        const qrDataURL = await generateQRDataURL(account, websiteDomain, cardColor);
+        const qrDataURL = await generateQRDataURL(account);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
     } catch (error) {
         // Fallback: draw empty QR placeholder box
@@ -384,9 +368,9 @@ export const generateMultipleAccountsPDF = async (accounts, onProgress, batchNum
 /**
  * Download a single account as PDF
  */
-export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
+export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
     const pdf = await generateAccountPDF(account, batchNumber, customLogo, websiteDomain, cardColor, cardBackLogo, accountIdType);
-    pdf.save(`account-${account.username}-${account.serialNumber}.pdf`);
+    pdf.save(`account-${account.username || account.email.split('@')[0]}-${account.serialNumber}.pdf`);
 };
 
 /**
@@ -404,22 +388,33 @@ export const downloadCardBackPDF = async (batchNumber = 1, customLogo = null, ca
 };
 
 /**
- * Print sheet constants for 60cm x 90cm printing plate
+ * Print sheet constants for default 60cm x 90cm printing plate
  * Card size: 85.6mm x 53.98mm (CR80 standard)
  */
-const PRINT_SHEET = {
+const DEFAULT_BOARD = {
     width: 900,  // 90cm in mm (landscape)
     height: 600, // 60cm in mm
+};
+
+const CARD_DIMENSIONS = {
     cardWidth: 85.6,
     cardHeight: 53.98,
     margin: 2,   // Small margin between cards
-    get cardsPerRow() { return Math.floor(this.width / (this.cardWidth + this.margin)); },    // ~10 cards
-    get cardsPerCol() { return Math.floor(this.height / (this.cardHeight + this.margin)); },  // ~10 cards
-    get cardsPerPage() { return this.cardsPerRow * this.cardsPerCol; }  // ~100 cards
 };
 
 /**
- * Generate a print sheet PDF with multiple cards arranged on 60cm x 90cm pages
+ * Calculate print sheet layout based on board dimensions
+ */
+const calculatePrintLayout = (boardWidth, boardHeight) => {
+    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const cardsPerPage = cardsPerRow * cardsPerCol;
+    return { cardsPerRow, cardsPerCol, cardsPerPage };
+};
+
+/**
+ * Generate a print sheet PDF with multiple cards arranged on custom-sized pages
  * Optimized for bulk printing on professional card printers
  * 
  * @param {Array} accounts - Array of account objects
@@ -428,10 +423,15 @@ const PRINT_SHEET = {
  * @param {string} customLogo - Custom logo data URL
  * @param {string} websiteDomain - Base URL for QR codes
  * @param {string} cardColor - Card color theme
+ * @param {number} boardWidth - Custom board width in mm (default: 900mm = 90cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  * @returns {Promise<Blob>} PDF as blob
  */
-export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
-    const { width, height, cardWidth, cardHeight, margin, cardsPerRow, cardsPerCol, cardsPerPage } = PRINT_SHEET;
+export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height) => {
+    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const width = boardWidth;
+    const height = boardHeight;
+    const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
     
     // Calculate starting positions to center the grid on the page
     const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
@@ -441,10 +441,13 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
 
     const totalPages = Math.ceil(accounts.length / cardsPerPage);
     
+    // Determine orientation based on dimensions
+    const isLandscape = width >= height;
+    
     const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: isLandscape ? 'landscape' : 'portrait',
         unit: 'mm',
-        format: [height, width], // 600mm x 900mm (height, width for landscape)
+        format: isLandscape ? [height, width] : [width, height], // [shorter side, longer side]
     });
 
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
@@ -467,7 +470,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
             const y = startY + row * (cardHeight + margin);
 
             // Draw card at calculated position
-            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, websiteDomain, cardColor);
+            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor);
 
             if (onProgress) {
                 onProgress({
@@ -491,7 +494,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
 /**
  * Draw a single card at a specific position on the print sheet
  */
-const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, websiteDomain, cardColor) => {
+const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, cardColor) => {
     const cardPadding = 1.5;
     const cornerRadius = 2.5;
     const CARD_COLORS = {
@@ -531,27 +534,9 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
     const qrX = x + cardPadding + 2.5;
     const qrY = contentY;
 
-    // QR Code
+    // QR Code using API URL with access token
     try {
-        const accountData = {
-            sn: account.serialNumber,
-            email: account.email,
-            pass: account.password,
-            name: `${account.firstName} ${account.lastName}`,
-            firstName: account.firstName,
-            lastName: account.lastName,
-            dob: account.birthday,
-            id: account.accountId,
-            color: cardColor
-        };
-        const encryptedData = await encryptData(accountData);
-        const qrValue = `${websiteDomain}?data=${encodeURIComponent(encryptedData)}`;
-        const qrDataURL = await QRCode.toDataURL(qrValue, {
-            width: 150,
-            margin: 1,
-            color: { dark: '#000000', light: '#FFFFFF' },
-            errorCorrectionLevel: 'M'
-        });
+        const qrDataURL = await generateQRDataURL(account);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
     } catch (error) {
         pdf.setDrawColor(0, 0, 0);
@@ -673,15 +658,196 @@ const drawDefaultIconSmall = (pdf, x, y, size) => {
 
 /**
  * Download print sheet PDF for bulk printing
+ * @param {Array} accounts - Array of account objects
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} websiteDomain - Base URL for QR codes
+ * @param {string} cardColor - Card color theme
+ * @param {number} boardWidth - Custom board width in mm (default: 900mm = 90cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  */
-export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = DEFAULT_DOMAIN, cardColor = 'blue') => {
-    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor);
+export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height) => {
+    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight);
     
     // Create download link
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `print-sheet-${accounts.length}-cards-${new Date().toISOString().split('T')[0]}.pdf`;
+    const boardInfo = `${boardWidth/10}x${boardHeight/10}cm`;
+    link.download = `print-sheet-${accounts.length}-cards-${boardInfo}-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+/**
+ * Generate a print sheet PDF with multiple card backs arranged on custom-sized pages
+ * Optimized for bulk printing on professional card printers
+ * 
+ * @param {number} cardBackCount - Number of card backs to generate
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} cardColor - Card color theme
+ * @param {string} accountIdType - 'apple' or 'google'
+ * @param {number} boardWidth - Custom board width in mm (default: 600mm = 60cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 900mm = 90cm)
+ * @returns {Promise<Blob>} PDF as blob
+ */
+export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
+    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const width = boardWidth;
+    const height = boardHeight;
+    const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
+    
+    // Calculate starting positions to center the grid on the page
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const startX = (width - gridWidth) / 2;
+    const startY = (height - gridHeight) / 2;
+
+    const totalPages = Math.ceil(cardBackCount / cardsPerPage);
+    
+    // Determine orientation based on dimensions
+    const isLandscape = width >= height;
+    
+    const pdf = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: isLandscape ? [height, width] : [width, height], // [shorter side, longer side]
+    });
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        if (pageIndex > 0) {
+            pdf.addPage();
+        }
+
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cardBackCount);
+        const cardsOnPage = pageEndIndex - pageStartIndex;
+
+        for (let i = 0; i < cardsOnPage; i++) {
+            const globalIndex = pageStartIndex + i;
+
+            // Calculate position in grid
+            const col = i % cardsPerRow;
+            const row = Math.floor(i / cardsPerRow);
+            const x = startX + col * (cardWidth + margin);
+            const y = startY + row * (cardHeight + margin);
+
+            // Draw card back at calculated position
+            await drawCardBackOnSheet(pdf, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, accountIdType);
+
+            if (onProgress) {
+                onProgress({
+                    current: globalIndex + 1,
+                    total: cardBackCount,
+                    percentage: Math.round(((globalIndex + 1) / cardBackCount) * 100),
+                    status: 'creating-cardback-sheet'
+                });
+                
+                // Yield to event loop every 5 cards to allow UI to update
+                if ((globalIndex + 1) % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+        }
+    }
+
+    return pdf.output('blob');
+};
+
+/**
+ * Draw a single card back at a specific position on the print sheet
+ */
+const drawCardBackOnSheet = async (pdf, x, y, width, height, batchNumber, customLogo, cardColor, accountIdType) => {
+    const cardPadding = 1.5;
+    const cornerRadius = 2.5;
+
+    // Get border color based on card color
+    const borderColor = cardColor === 'black' ? { r: 30, g: 30, b: 30 } : { r: 0, g: 0, b: 0 };
+
+    // Card background with rounded corners
+    pdf.setFillColor(255, 255, 255);
+    pdf.roundedRect(x + cardPadding, y + cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'F');
+
+    // Card border with rounded corners
+    pdf.setDrawColor(borderColor.r, borderColor.g, borderColor.b);
+    pdf.setLineWidth(0.5);
+    pdf.roundedRect(x + cardPadding, y + cardPadding, width - cardPadding * 2, height - cardPadding * 2, cornerRadius, cornerRadius, 'S');
+
+    // Center calculations
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+
+    // Logo - centered at top portion
+    const logoSize = 14;
+    const logoX = centerX - logoSize / 2;
+    const logoY = centerY - 14;
+
+    if (customLogo) {
+        try {
+            pdf.addImage(customLogo, 'PNG', logoX, logoY, logoSize, logoSize);
+        } catch (error) {
+            // Fallback to default icon
+            drawLargeAppStoreIcon(pdf, logoX, logoY, logoSize);
+        }
+    } else {
+        drawLargeAppStoreIcon(pdf, logoX, logoY, logoSize);
+    }
+
+    // Account ID type text (APPLE ID or GOOGLE ID)
+    const accountIdText = accountIdType === 'google' ? 'GOOGLE ID' : 'APPLE ID';
+    pdf.setTextColor(29, 29, 31);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(accountIdText, centerX, centerY + 4, { align: 'center' });
+
+    // USA ACCOUNT text
+    pdf.setTextColor(134, 134, 139);
+    pdf.setFontSize(6);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('USA ACCOUNT', centerX, centerY + 8, { align: 'center' });
+
+    // VIP-BATCH badge
+    const badgeText = `VIP-BATCH-${String(batchNumber).padStart(2, '0')}`;
+    const badgeWidth = 20;
+    const badgeHeight = 4;
+    const badgeX = centerX - badgeWidth / 2;
+    const badgeY = centerY + 12;
+
+    pdf.setDrawColor(29, 29, 31);
+    pdf.setLineWidth(0.2);
+    pdf.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 0.8, 0.8, 'S');
+
+    pdf.setTextColor(29, 29, 31);
+    pdf.setFontSize(4);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(badgeText, centerX, badgeY + 2.8, { align: 'center' });
+};
+
+/**
+ * Download card back print sheet PDF for bulk printing
+ * @param {number} cardBackCount - Number of card backs to generate
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} cardColor - Card color theme
+ * @param {string} accountIdType - 'apple' or 'google'
+ * @param {number} boardWidth - Custom board width in mm (default: 600mm = 60cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 900mm = 90cm)
+ */
+export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
+    const blob = await generateCardBackPrintSheetPDF(cardBackCount, onProgress, batchNumber, customLogo, cardColor, accountIdType, boardWidth, boardHeight);
+    
+    // Create download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const boardInfo = `${boardWidth/10}x${boardHeight/10}cm`;
+    link.download = `card-backs-${cardBackCount}-${accountIdType}-${boardInfo}-${new Date().toISOString().split('T')[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -695,5 +861,7 @@ export default {
     downloadCardBackPDF,
     generatePrintSheetPDF,
     downloadPrintSheetPDF,
+    generateCardBackPrintSheetPDF,
+    downloadCardBackPrintSheetPDF,
 };
 

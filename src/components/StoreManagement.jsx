@@ -1,0 +1,1187 @@
+import React, { useState, useEffect } from 'react';
+import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport } from '../services/api';
+import { downloadAccountsZip } from '../services/zipExporter';
+import { downloadPrintSheetPDF, downloadAccountPDF, downloadCardBackPrintSheetPDF } from '../services/pdfGenerator';
+import AccountCard from './AccountCard';
+import CardBack from './CardBack';
+import Card from './ui/Card';
+import {
+    Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
+    Download, FileArchive, Printer, Upload, Eye, Settings, Check, List
+} from 'lucide-react';
+
+/**
+ * Store Management Component
+ * Create, edit, delete stores and generate cards with export functionality
+ */
+const StoreManagement = () => {
+    const [stores, setStores] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Form states
+    const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showGenerateForm, setShowGenerateForm] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [editingStore, setEditingStore] = useState(null);
+    const [selectedStore, setSelectedStore] = useState(null);
+
+    // Generated cards state
+    const [generatedCards, setGeneratedCards] = useState([]);
+    const [cardsByBatch, setCardsByBatch] = useState({}); // Cards grouped by batch ID
+    const [selectedBatchId, setSelectedBatchId] = useState(null); // Currently selected batch for export
+    const [selectedPreviewCard, setSelectedPreviewCard] = useState(null);
+
+    // Create/Edit form data
+    const [formData, setFormData] = useState({
+        name: '',
+        location: '',
+        contact_email: '',
+        contact_phone: '',
+    });
+
+    // Generate cards form data with settings
+    const [generateData, setGenerateData] = useState({
+        count: 10,
+        email_type: 'icloud',
+        color: 'blue',
+        email_prefix: '',
+    });
+
+    // Card customization settings
+    const [customLogo, setCustomLogo] = useState(null);
+    const [cardBackLogo, setCardBackLogo] = useState(null);
+    const [cardColor, setCardColor] = useState('blue');
+    const [accountIdType, setAccountIdType] = useState('apple'); // 'apple' or 'google'
+
+    // Board size settings (in cm, defaults to 60x90cm)
+    const [boardWidth, setBoardWidth] = useState('');
+    const [boardHeight, setBoardHeight] = useState('');
+
+    // Card Back count for print sheet (defaults to generated cards count)
+    const [cardBackCount, setCardBackCount] = useState('');
+
+    const [actionLoading, setActionLoading] = useState(false);
+    const [exportProgress, setExportProgress] = useState(null);
+
+    // Helper function to format large numbers (1000 -> 1k, 1000000 -> 1M)
+    const formatNumber = (num) => {
+        if (num === null || num === undefined) return '0';
+        num = Number(num);
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(num % 1000000 === 0 ? 0 : 1) + 'M';
+        }
+        if (num >= 1000) {
+            return (num / 1000).toFixed(num % 1000 === 0 ? 0 : 1) + 'k';
+        }
+        return num.toString();
+    };
+
+    useEffect(() => {
+        loadStores();
+    }, []);
+
+    const loadStores = async () => {
+        setLoading(true);
+        try {
+            const data = await getStores();
+            setStores(data);
+        } catch (err) {
+            console.error('Failed to load stores:', err);
+            setError('Failed to load stores');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateStore = async (e) => {
+        e.preventDefault();
+        setActionLoading(true);
+        try {
+            await createStore(formData);
+            setShowCreateForm(false);
+            setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
+            await loadStores();
+        } catch (err) {
+            console.error('Failed to create store:', err);
+            setError(err.response?.data?.message || 'Failed to create store');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleUpdateStore = async (e) => {
+        e.preventDefault();
+        setActionLoading(true);
+        try {
+            await updateStore(editingStore.id, formData);
+            setEditingStore(null);
+            setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
+            await loadStores();
+        } catch (err) {
+            console.error('Failed to update store:', err);
+            setError(err.response?.data?.message || 'Failed to update store');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDeleteStore = async (storeId) => {
+        if (!confirm('Are you sure you want to delete this store? All associated cards will also be deleted.')) {
+            return;
+        }
+        setActionLoading(true);
+        try {
+            await deleteStore(storeId);
+            await loadStores();
+        } catch (err) {
+            console.error('Failed to delete store:', err);
+            setError(err.response?.data?.message || 'Failed to delete store');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleGenerateCards = async (e) => {
+        e.preventDefault();
+        if (!selectedStore) return;
+
+        setActionLoading(true);
+        try {
+            const response = await generateCards(
+                selectedStore.id,
+                generateData.count,
+                generateData.email_type,
+                generateData.color,
+                generateData.email_prefix || null
+            );
+
+            // Store generated cards for export
+            setGeneratedCards(response.cards || []);
+            setCardColor(generateData.color);
+
+            // Select first card for preview
+            if (response.cards && response.cards.length > 0) {
+                setSelectedPreviewCard(response.cards[0]);
+            }
+
+            setShowGenerateForm(false);
+            setShowExportModal(true); // Show export modal with cards
+            await loadStores();
+        } catch (err) {
+            console.error('Failed to generate cards:', err);
+            setError(err.response?.data?.message || 'Failed to generate cards');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Export handlers
+    const handleExportZip = async () => {
+        if (generatedCards.length === 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'packaging' });
+
+        try {
+            await downloadAccountsZip(generatedCards, (progress) => {
+                setExportProgress(progress);
+            }, customLogo, cardColor, cardBackLogo);
+        } catch (err) {
+            console.error('Export failed:', err);
+            setError('Failed to export ZIP');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    const handleExportPrintSheet = async () => {
+        if (generatedCards.length === 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-sheet' });
+
+        try {
+            // Convert cm to mm (or use defaults: 60cm x 90cm = 600mm x 900mm)
+            const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
+            const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
+
+            await downloadPrintSheetPDF(generatedCards, (progress) => {
+                setExportProgress(progress);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm);
+        } catch (err) {
+            console.error('Print sheet export failed:', err);
+            setError('Failed to export print sheet');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    const handleExportCardBackPrintSheet = async () => {
+        // Use cardBackCount or default to generated cards count
+        const count = cardBackCount ? parseInt(cardBackCount, 10) : generatedCards.length;
+        if (count <= 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: count, percentage: 0, status: 'creating-cardback-sheet' });
+
+        try {
+            // Convert cm to mm (or use defaults: 60cm x 90cm = 600mm x 900mm)
+            const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
+            const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
+
+            await downloadCardBackPrintSheetPDF(count, (progress) => {
+                setExportProgress(progress);
+            }, 1, cardBackLogo, cardColor, accountIdType, widthMm, heightMm);
+        } catch (err) {
+            console.error('Card back print sheet export failed:', err);
+            setError('Failed to export card back print sheet');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Export print sheet for a specific batch
+    const handleExportBatchPrintSheet = async (batchId) => {
+        const batch = cardsByBatch[batchId];
+        if (!batch || batch.cards.length === 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: batch.cards.length, percentage: 0, status: 'creating-sheet' });
+
+        try {
+            const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
+            const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
+
+            await downloadPrintSheetPDF(batch.cards, (progress) => {
+                setExportProgress(progress);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm);
+        } catch (err) {
+            console.error('Batch print sheet export failed:', err);
+            setError('Failed to export batch print sheet');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Export card backs for a specific batch count
+    const handleExportBatchCardBackPrintSheet = async (batchId) => {
+        const batch = cardsByBatch[batchId];
+        if (!batch || batch.cards.length === 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: batch.cards.length, percentage: 0, status: 'creating-cardback-sheet' });
+
+        try {
+            const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
+            const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
+
+            await downloadCardBackPrintSheetPDF(batch.cards.length, (progress) => {
+                setExportProgress(progress);
+            }, 1, cardBackLogo, cardColor, accountIdType, widthMm, heightMm);
+        } catch (err) {
+            console.error('Batch card back print sheet export failed:', err);
+            setError('Failed to export batch card back print sheet');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Logo upload handlers
+    const handleLogoUpload = (event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setError('Please upload an image file');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                setError('Image must be under 5MB');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => setCustomLogo(e.target.result);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleCardBackLogoUpload = (event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setError('Please upload an image file');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                setError('Image must be under 5MB');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => setCardBackLogo(e.target.result);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const openEditForm = (store) => {
+        setEditingStore(store);
+        setFormData({
+            name: store.name,
+            location: store.location || '',
+            contact_email: store.contact_email || '',
+            contact_phone: store.contact_phone || '',
+        });
+    };
+
+    const openGenerateForm = (store) => {
+        setSelectedStore(store);
+        setShowGenerateForm(true);
+    };
+
+    // View existing cards for a store (for export)
+    const handleViewCards = async (store) => {
+        setActionLoading(true);
+        setSelectedStore(store);
+        try {
+            const response = await getStoreCardsForExport(store.id);
+            if (response.cards && response.cards.length > 0) {
+                setGeneratedCards(response.cards);
+                setSelectedPreviewCard(response.cards[0]);
+                setCardColor(response.cards[0].color || 'blue');
+
+                // Group cards by batchId
+                const grouped = response.cards.reduce((acc, card) => {
+                    const batchKey = card.batchId || 'legacy'; // Legacy cards without batchId
+                    if (!acc[batchKey]) {
+                        acc[batchKey] = {
+                            cards: [],
+                            createdAt: card.createdAt,
+                        };
+                    }
+                    acc[batchKey].cards.push(card);
+                    return acc;
+                }, {});
+
+                setCardsByBatch(grouped);
+                // Select the most recent batch by default (first in the list since ordered by desc)
+                const batchKeys = Object.keys(grouped);
+                if (batchKeys.length > 0) {
+                    setSelectedBatchId(batchKeys[0]);
+                }
+
+                setShowExportModal(true);
+            } else {
+                setError('No cards found for this store. Generate some cards first.');
+            }
+        } catch (err) {
+            console.error('Failed to load cards:', err);
+            setError('Failed to load cards for export');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="stores-loading">
+                <div className="spinner"></div>
+                <p>Loading stores...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="store-management">
+            <div className="stores-header">
+                <h2>Store Management</h2>
+                <button
+                    onClick={() => setShowCreateForm(true)}
+                    className="btn btn-accent"
+                    disabled={actionLoading}
+                >
+                    <Plus size={18} /> Add Store
+                </button>
+            </div>
+
+            {error && (
+                <div className="error-banner">
+                    <AlertCircle size={18} />
+                    {error}
+                    <button onClick={() => setError(null)}><X size={16} /></button>
+                </div>
+            )}
+
+            {/* Create Store Modal */}
+            {showCreateForm && (
+                <div className="modal-overlay">
+                    <div className="modal">
+                        <div className="modal-header">
+                            <h3>Create New Store</h3>
+                            <button onClick={() => setShowCreateForm(false)}><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleCreateStore}>
+                            <div className="form-group">
+                                <label>Store Name *</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                    placeholder="Enter store name"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Location</label>
+                                <input
+                                    type="text"
+                                    value={formData.location}
+                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                    placeholder="City, Country"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Contact Email</label>
+                                <input
+                                    type="email"
+                                    value={formData.contact_email}
+                                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                                    placeholder="store@example.com"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Contact Phone</label>
+                                <input
+                                    type="text"
+                                    value={formData.contact_phone}
+                                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                                    placeholder="+1234567890"
+                                />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" onClick={() => setShowCreateForm(false)} className="btn btn-ghost">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary-enhanced" disabled={actionLoading}>
+                                    {actionLoading ? 'Creating...' : 'Create Store'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Store Modal */}
+            {editingStore && (
+                <div className="modal-overlay">
+                    <div className="modal">
+                        <div className="modal-header">
+                            <h3>Edit Store</h3>
+                            <button onClick={() => setEditingStore(null)}><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleUpdateStore}>
+                            <div className="form-group">
+                                <label>Store Name *</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Location</label>
+                                <input
+                                    type="text"
+                                    value={formData.location}
+                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Contact Email</label>
+                                <input
+                                    type="email"
+                                    value={formData.contact_email}
+                                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Contact Phone</label>
+                                <input
+                                    type="text"
+                                    value={formData.contact_phone}
+                                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                                />
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" onClick={() => setEditingStore(null)} className="btn btn-ghost">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-primary-enhanced" disabled={actionLoading}>
+                                    {actionLoading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Generate Cards Modal */}
+            {showGenerateForm && selectedStore && (
+                <div className="modal-overlay">
+                    <div className="modal" style={{ maxWidth: '600px' }}>
+                        <div className="modal-header">
+                            <h3>Generate Cards for {selectedStore.name}</h3>
+                            <button onClick={() => setShowGenerateForm(false)}><X size={20} /></button>
+                        </div>
+                        <form onSubmit={handleGenerateCards}>
+                            <div className="form-group">
+                                <label>Number of Cards *</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="5000"
+                                    value={generateData.count}
+                                    onChange={(e) => setGenerateData({ ...generateData, count: parseInt(e.target.value) })}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Email Type</label>
+                                <select
+                                    value={generateData.email_type}
+                                    onChange={(e) => setGenerateData({ ...generateData, email_type: e.target.value })}
+                                >
+                                    <option value="icloud">iCloud Only</option>
+                                    <option value="gmail">Gmail Only</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>Email Prefix (8 characters)</label>
+                                <input
+                                    type="text"
+                                    maxLength={8}
+                                    placeholder="e.g., abcd1234"
+                                    value={generateData.email_prefix}
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                                        setGenerateData({ ...generateData, email_prefix: value });
+                                    }}
+                                    style={{
+                                        fontFamily: 'monospace',
+                                        letterSpacing: '0.1em'
+                                    }}
+                                />
+                                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                                    {generateData.email_prefix ? (
+                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'•'.repeat(22)}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
+                                    ) : (
+                                        'Optional: Enter 8 alphanumeric characters for email prefix'
+                                    )}
+                                </span>
+                            </div>
+                            <div className="form-group">
+                                <label>Card Color</label>
+                                <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setGenerateData({ ...generateData, color: 'blue' })}
+                                        style={{
+                                            flex: 1,
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: generateData.color === 'blue' ? '2px solid var(--color-accent-blue)' : '2px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: generateData.color === 'blue' ? 'rgba(0, 136, 204, 0.15)' : 'var(--color-bg-secondary)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--spacing-sm)'
+                                        }}
+                                    >
+                                        <span style={{ width: 16, height: 16, borderRadius: 4, background: '#0088CC' }}></span>
+                                        <span style={{ fontWeight: generateData.color === 'blue' ? 600 : 400 }}>Blue</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setGenerateData({ ...generateData, color: 'black' })}
+                                        style={{
+                                            flex: 1,
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: generateData.color === 'black' ? '2px solid #1E1E1E' : '2px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: generateData.color === 'black' ? 'rgba(30, 30, 30, 0.15)' : 'var(--color-bg-secondary)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--spacing-sm)'
+                                        }}
+                                    >
+                                        <span style={{ width: 16, height: 16, borderRadius: 4, background: '#1E1E1E' }}></span>
+                                        <span style={{ fontWeight: generateData.color === 'black' ? 600 : 400 }}>Black</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="modal-actions">
+                                <button type="button" onClick={() => setShowGenerateForm(false)} className="btn btn-ghost">
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn btn-success-enhanced" disabled={actionLoading}>
+                                    {actionLoading ? 'Generating...' : `Generate ${generateData.count} Cards`}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Export Modal - Shows after card generation */}
+            {showExportModal && generatedCards.length > 0 && (
+                <div className="modal-overlay">
+                    <div className="modal" style={{ maxWidth: '900px', maxHeight: '90vh', overflow: 'auto' }}>
+                        <div className="modal-header">
+                            <h3>
+                                <Check size={20} style={{ color: 'var(--color-accent-green)' }} />
+                                {generatedCards.length} Cards Generated Successfully!
+                            </h3>
+                            <button onClick={() => setShowExportModal(false)}><X size={20} /></button>
+                        </div>
+
+                        <div style={{ padding: 'var(--spacing-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xl)' }}>
+                            {/* Export Actions */}
+                            <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={handleExportZip}
+                                    className="btn btn-success-enhanced"
+                                    disabled={actionLoading}
+                                    style={{ flex: 1, minWidth: '200px' }}
+                                >
+                                    <FileArchive size={18} />
+                                    {exportProgress ? `${exportProgress.percentage}%...` : `Download All as ZIP (${generatedCards.length} PDFs)`}
+                                </button>
+                                <button
+                                    onClick={handleExportPrintSheet}
+                                    className="btn btn-secondary-enhanced"
+                                    disabled={actionLoading}
+                                    style={{ flex: 1, minWidth: '200px' }}
+                                >
+                                    <Printer size={18} />
+                                    {exportProgress?.status === 'creating-sheet' ? `${exportProgress.percentage}%...` : `Download Print Sheet PDF`}
+                                </button>
+                                <button
+                                    onClick={handleExportCardBackPrintSheet}
+                                    className="btn btn-purple-enhanced"
+                                    disabled={actionLoading}
+                                    style={{ flex: 1, minWidth: '200px' }}
+                                >
+                                    <Printer size={18} />
+                                    {exportProgress?.status === 'creating-cardback-sheet' ? `${exportProgress.percentage}%...` : `Download Card Backs Print Sheet`}
+                                </button>
+                            </div>
+
+                            {/* Print Sheet Settings */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(3, 1fr)',
+                                gap: 'var(--spacing-md)',
+                                padding: 'var(--spacing-md)',
+                                background: 'var(--color-bg-secondary)',
+                                borderRadius: 'var(--border-radius-lg)',
+                                border: '1px solid var(--border-color)'
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                    <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)' }}>
+                                        Card Backs Count
+                                    </label>
+                                    <input
+                                        type="number"
+                                        placeholder={String(generatedCards.length)}
+                                        value={cardBackCount}
+                                        onChange={(e) => setCardBackCount(e.target.value)}
+                                        min="1"
+                                        max="5000"
+                                        style={{
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: 'var(--color-bg-primary)',
+                                            fontSize: 'var(--font-size-md)'
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                    <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)' }}>
+                                        Print Sheet Width (cm)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        placeholder="60"
+                                        value={boardWidth}
+                                        onChange={(e) => setBoardWidth(e.target.value)}
+                                        style={{
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: 'var(--color-bg-primary)',
+                                            fontSize: 'var(--font-size-md)'
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                    <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)' }}>
+                                        Print Sheet Height (cm)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        placeholder="90"
+                                        value={boardHeight}
+                                        onChange={(e) => setBoardHeight(e.target.value)}
+                                        style={{
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: 'var(--color-bg-primary)',
+                                            fontSize: 'var(--font-size-md)'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Card Preview & Settings */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
+                                {/* Card Preview */}
+                                <Card hover={false}>
+                                    <Card.Header>
+                                        <Eye size={18} style={{ color: 'var(--color-accent-green)' }} />
+                                        <span>Card Preview</span>
+                                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--spacing-xs)' }}>
+                                            <label style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--spacing-xs)',
+                                                padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                                background: 'var(--color-bg-tertiary)',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                cursor: 'pointer',
+                                                fontSize: 'var(--font-size-xs)',
+                                                color: 'var(--color-text-secondary)'
+                                            }}>
+                                                <Upload size={14} />
+                                                {customLogo ? 'Change Logo' : 'Upload Logo'}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleLogoUpload}
+                                                    style={{ display: 'none' }}
+                                                />
+                                            </label>
+                                            {customLogo && (
+                                                <button
+                                                    onClick={() => setCustomLogo(null)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: 'var(--spacing-xs)',
+                                                        background: 'rgba(255, 59, 48, 0.1)',
+                                                        border: 'none',
+                                                        borderRadius: 'var(--border-radius-sm)',
+                                                        cursor: 'pointer',
+                                                        color: 'var(--color-accent-red)'
+                                                    }}
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </Card.Header>
+                                    <Card.Body style={{ padding: 0 }}>
+                                        <AccountCard account={selectedPreviewCard} customLogo={customLogo} cardColor={cardColor} />
+                                    </Card.Body>
+                                </Card>
+
+                                {/* Card Back Preview */}
+                                <Card hover={false}>
+                                    <Card.Header>
+                                        <Eye size={18} style={{ color: 'var(--color-accent-purple)' }} />
+                                        <span>Card Back Preview</span>
+                                        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--spacing-xs)' }}>
+                                            <label style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--spacing-xs)',
+                                                padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                                background: 'var(--color-bg-tertiary)',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                cursor: 'pointer',
+                                                fontSize: 'var(--font-size-xs)',
+                                                color: 'var(--color-text-secondary)'
+                                            }}>
+                                                <Upload size={14} />
+                                                {cardBackLogo ? 'Change' : 'Upload'}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleCardBackLogoUpload}
+                                                    style={{ display: 'none' }}
+                                                />
+                                            </label>
+                                            {cardBackLogo && (
+                                                <button
+                                                    onClick={() => setCardBackLogo(null)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: 'var(--spacing-xs)',
+                                                        background: 'rgba(255, 59, 48, 0.1)',
+                                                        border: 'none',
+                                                        borderRadius: 'var(--border-radius-sm)',
+                                                        cursor: 'pointer',
+                                                        color: 'var(--color-accent-red)'
+                                                    }}
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </Card.Header>
+                                    <Card.Body style={{ padding: 'var(--spacing-md)' }}>
+                                        <CardBack batchNumber={1} customLogo={cardBackLogo} cardColor={cardColor} accountIdType={accountIdType} />
+                                    </Card.Body>
+                                </Card>
+                            </div>
+
+                            {/* Card Settings */}
+                            <Card hover={false}>
+                                <Card.Header>
+                                    <Settings size={18} style={{ color: 'var(--color-accent-purple)' }} />
+                                    <span>Card Settings</span>
+                                </Card.Header>
+                                <Card.Body>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xs)', display: 'block' }}>
+                                                Card Color
+                                            </label>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                <button
+                                                    onClick={() => setCardColor('blue')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                        border: cardColor === 'blue' ? '2px solid var(--color-accent-blue)' : '2px solid var(--border-color)',
+                                                        borderRadius: 'var(--border-radius-md)',
+                                                        background: cardColor === 'blue' ? 'rgba(0, 136, 204, 0.15)' : 'var(--color-bg-secondary)',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--spacing-sm)'
+                                                    }}
+                                                >
+                                                    <span style={{ width: 16, height: 16, borderRadius: 4, background: '#0088CC' }}></span>
+                                                    <span style={{ fontWeight: cardColor === 'blue' ? 600 : 400 }}>Blue</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setCardColor('black')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                        border: cardColor === 'black' ? '2px solid #1E1E1E' : '2px solid var(--border-color)',
+                                                        borderRadius: 'var(--border-radius-md)',
+                                                        background: cardColor === 'black' ? 'rgba(30, 30, 30, 0.15)' : 'var(--color-bg-secondary)',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--spacing-sm)'
+                                                    }}
+                                                >
+                                                    <span style={{ width: 16, height: 16, borderRadius: 4, background: '#1E1E1E' }}></span>
+                                                    <span style={{ fontWeight: cardColor === 'black' ? 600 : 400 }}>Black</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Account ID Type */}
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-xs)', display: 'block' }}>
+                                                Card Back Account Type
+                                            </label>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                <button
+                                                    onClick={() => setAccountIdType('apple')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                        border: accountIdType === 'apple' ? '2px solid var(--color-accent-blue)' : '2px solid var(--border-color)',
+                                                        borderRadius: 'var(--border-radius-md)',
+                                                        background: accountIdType === 'apple' ? 'rgba(0, 136, 204, 0.15)' : 'var(--color-bg-secondary)',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--spacing-sm)'
+                                                    }}
+                                                >
+                                                    <span style={{ fontWeight: accountIdType === 'apple' ? 600 : 400 }}>Apple ID</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setAccountIdType('google')}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                        border: accountIdType === 'google' ? '2px solid #EA4335' : '2px solid var(--border-color)',
+                                                        borderRadius: 'var(--border-radius-md)',
+                                                        background: accountIdType === 'google' ? 'rgba(234, 67, 53, 0.15)' : 'var(--color-bg-secondary)',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 'var(--spacing-sm)'
+                                                    }}
+                                                >
+                                                    <span style={{ fontWeight: accountIdType === 'google' ? 600 : 400 }}>Google ID</span>
+                                                </button>
+                                            </div>
+                                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 'var(--spacing-xs)', display: 'block' }}>
+                                                Changes the text on the card back
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Card.Body>
+                            </Card>
+
+                            {/* Generated Cards List */}
+                            <Card hover={false}>
+                                <Card.Header>
+                                    <CreditCard size={18} style={{ color: 'var(--color-accent-blue)' }} />
+                                    <span>Generated Cards ({generatedCards.length})</span>
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '200px', overflow: 'auto' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        {generatedCards.slice(0, 20).map((card, index) => (
+                                            <div
+                                                key={card.id}
+                                                onClick={() => setSelectedPreviewCard(card)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--spacing-md)',
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    background: selectedPreviewCard?.id === card.id ? 'var(--color-bg-tertiary)' : 'transparent',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <span style={{ color: 'var(--color-text-tertiary)', width: '30px' }}>#{index + 1}</span>
+                                                <span style={{ fontWeight: 'var(--font-weight-medium)', flex: 1 }}>{card.email}</span>
+                                                <span style={{ color: 'var(--color-text-secondary)' }}>{card.serialNumber}</span>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        downloadAccountPDF(card, 1, customLogo, undefined, cardColor);
+                                                    }}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        padding: 'var(--spacing-xs)',
+                                                        background: 'var(--color-bg-secondary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: 'var(--border-radius-sm)',
+                                                        cursor: 'pointer',
+                                                        color: 'var(--color-accent-blue)',
+                                                        transition: 'all 0.2s ease'
+                                                    }}
+                                                    title="Download PDF"
+                                                >
+                                                    <Download size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {generatedCards.length > 20 && (
+                                            <div style={{ textAlign: 'center', color: 'var(--color-text-tertiary)', padding: 'var(--spacing-sm)' }}>
+                                                ... and {generatedCards.length - 20} more cards
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card.Body>
+                            </Card>
+
+                            {/* Batch List - For Separate Exports */}
+                            {Object.keys(cardsByBatch).length > 1 && (
+                                <Card hover={false}>
+                                    <Card.Header>
+                                        <FileArchive size={18} style={{ color: 'var(--color-accent-purple)' }} />
+                                        <span>Card Batches ({Object.keys(cardsByBatch).length})</span>
+                                    </Card.Header>
+                                    <Card.Body style={{ maxHeight: '250px', overflow: 'auto' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+                                            {Object.entries(cardsByBatch).map(([batchId, batch], index) => (
+                                                <div
+                                                    key={batchId}
+                                                    style={{
+                                                        padding: 'var(--spacing-md)',
+                                                        background: 'var(--color-bg-tertiary)',
+                                                        borderRadius: 'var(--border-radius-md)',
+                                                        border: '1px solid var(--border-color)',
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-sm)' }}>
+                                                        <div>
+                                                            <span style={{ fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-md)' }}>
+                                                                {batchId === 'legacy' ? 'Legacy Cards' : `Batch ${Object.keys(cardsByBatch).length - index}`}
+                                                            </span>
+                                                            <span style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                                                                ({batch.cards.length} cards)
+                                                            </span>
+                                                        </div>
+                                                        <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
+                                                            {batch.createdAt ? new Date(batch.createdAt).toLocaleString() : 'Unknown date'}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                        <button
+                                                            onClick={() => handleExportBatchPrintSheet(batchId)}
+                                                            className="btn btn-secondary-enhanced"
+                                                            disabled={actionLoading}
+                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                        >
+                                                            <Printer size={14} />
+                                                            Print Sheet
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleExportBatchCardBackPrintSheet(batchId)}
+                                                            className="btn btn-purple-enhanced"
+                                                            disabled={actionLoading}
+                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                        >
+                                                            <Printer size={14} />
+                                                            Card Backs
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Card.Body>
+                                </Card>
+                            )}
+
+                            <div className="modal-actions" style={{ borderTop: '1px solid var(--border-color)', paddingTop: 'var(--spacing-lg)' }}>
+                                <button onClick={() => setShowExportModal(false)} className="btn btn-primary-enhanced">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {stores.length === 0 ? (
+                <div className="empty-state" style={{
+                    padding: 'var(--spacing-3xl)',
+                    background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%)',
+                    borderRadius: 'var(--border-radius-xl)',
+                    border: '1px solid var(--border-color)',
+                    textAlign: 'center',
+                    maxWidth: '500px',
+                    margin: 'var(--spacing-3xl) auto'
+                }}>
+                    <div style={{
+                        width: '80px',
+                        height: '80px',
+                        margin: '0 auto var(--spacing-lg)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(0, 136, 204, 0.05) 100%)',
+                        borderRadius: 'var(--border-radius-xl)',
+                        border: '2px solid rgba(0, 136, 204, 0.2)'
+                    }}>
+                        <Store size={40} style={{ color: 'var(--color-accent-blue)' }} />
+                    </div>
+                    <h3 style={{
+                        fontSize: 'var(--font-size-2xl)',
+                        fontWeight: 'var(--font-weight-semibold)',
+                        color: 'var(--color-text-primary)',
+                        marginBottom: 'var(--spacing-sm)'
+                    }}>No Stores Yet</h3>
+                    <p style={{
+                        fontSize: 'var(--font-size-md)',
+                        color: 'var(--color-text-secondary)',
+                        marginBottom: 'var(--spacing-xl)',
+                        lineHeight: 1.6
+                    }}>Get started by creating your first store. Generate and manage account cards for your business.</p>
+                    <button
+                        onClick={() => setShowCreateForm(true)}
+                        className="btn-primary"
+                        style={{
+                            padding: 'var(--spacing-md) var(--spacing-2xl)',
+                            fontSize: 'var(--font-size-md)',
+                            fontWeight: 'var(--font-weight-semibold)',
+                            background: 'linear-gradient(135deg, var(--color-accent-blue) 0%, #0077BB 100%)',
+                            boxShadow: '0 4px 12px rgba(0, 136, 204, 0.3)',
+                            transition: 'all 0.3s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.target.style.transform = 'translateY(-2px)';
+                            e.target.style.boxShadow = '0 6px 16px rgba(0, 136, 204, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.target.style.transform = 'translateY(0)';
+                            e.target.style.boxShadow = '0 4px 12px rgba(0, 136, 204, 0.3)';
+                        }}
+                    >
+                        <Plus size={18} /> Create First Store
+                    </button>
+                </div>
+            ) : (
+                <div className="stores-grid">
+                    {stores.map((store) => (
+                        <div key={store.id} className="store-card">
+                            <div className="store-card-header">
+                                <div className="store-icon">
+                                    <Store size={24} />
+                                </div>
+                                <div className="store-actions">
+                                    <button onClick={() => openEditForm(store)} title="Edit">
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button onClick={() => handleDeleteStore(store.id)} title="Delete" className="danger">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="store-card-body">
+                                <h3>{store.name}</h3>
+                                {store.location && <p className="store-location">{store.location}</p>}
+                            </div>
+                            <div className="store-card-stats">
+                                <div className="stat">
+                                    <span className="stat-value">{formatNumber(store.cards_count)}</span>
+                                    <span className="stat-label">Total Cards</span>
+                                </div>
+                                <div className="stat">
+                                    <span className="stat-value active">{formatNumber(store.active_cards_count)}</span>
+                                    <span className="stat-label">Active</span>
+                                </div>
+                                <div className="stat">
+                                    <span className="stat-value inactive">{formatNumber(store.inactive_cards_count)}</span>
+                                    <span className="stat-label">Inactive</span>
+                                </div>
+                            </div>
+                            <div className="store-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                <button onClick={() => handleViewCards(store)} className="btn btn-secondary-enhanced" style={{ flex: 1 }} disabled={actionLoading || (store.cards_count || 0) === 0}>
+                                    <List size={16} /> View Cards
+                                </button>
+                                <button onClick={() => openGenerateForm(store)} className="btn btn-primary-enhanced" style={{ flex: 1 }}>
+                                    <CreditCard size={16} /> Generate
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default StoreManagement;

@@ -3,6 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/account-generation/',
+  // base: '/account-generation/', // Commented out for root deployment
 })
 

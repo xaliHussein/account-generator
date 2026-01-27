@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { encryptData } from '../services/encryption';
 
-// Default website domain for QR codes (GitHub Pages with hash routing)
-const DEFAULT_DOMAIN = 'https://xalihussein.github.io/account-generation/#/view';
-
-// Dynamic domain generation - for localhost testing, uncomment below and comment the line above
-// const getDefaultDomain = () => {
-//     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-//     return `${origin}/#/view`;
-// };
-// const DEFAULT_DOMAIN = getDefaultDomain();
+// Frontend base URL for QR codes - points to the view page
+const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
 
 /**
  * Account card preview component - Apple ID style matching PDF output
@@ -20,42 +12,36 @@ const AccountCard = ({
     showQR = true,
     batchNumber = 1,
     customLogo = null,
-    websiteDomain = DEFAULT_DOMAIN,
     cardColor = 'blue'
 }) => {
     const [qrValue, setQrValue] = useState('');
 
-    // Generate encrypted QR value when account or settings change
+    // Generate QR value with frontend view page URL and access token
     useEffect(() => {
-        const generateEncryptedQR = async () => {
-            if (!account) {
-                setQrValue('');
-                return;
-            }
+        if (!account) {
+            setQrValue('');
+            return;
+        }
 
-            const accountData = {
-                sn: account.serialNumber,
+        // Debug logging to trace accessToken
+        if (!account.accessToken) {
+            console.warn('AccountCard: Missing accessToken for account:', {
+                id: account.id,
                 email: account.email,
-                pass: account.password,
-                name: `${account.firstName} ${account.lastName}`,
-                firstName: account.firstName,
-                lastName: account.lastName,
-                dob: account.birthday,
-                id: account.accountId,
-                color: cardColor
-            };
+                hasAccessToken: !!account.accessToken,
+                keys: Object.keys(account)
+            });
+        }
 
-            try {
-                const encryptedData = await encryptData(accountData);
-                setQrValue(`${websiteDomain}?data=${encodeURIComponent(encryptedData)}`);
-            } catch (error) {
-                console.error('Failed to generate QR value:', error);
-                setQrValue('');
-            }
-        };
-
-        generateEncryptedQR();
-    }, [account, websiteDomain, cardColor]);
+        // Use frontend view page with token for security
+        if (account.id && account.accessToken) {
+            setQrValue(`${FRONTEND_BASE_URL}/#/view?id=${account.id}&token=${account.accessToken}`);
+        } else {
+            // Fallback for cards without accessToken
+            console.error('AccountCard: Generating QR without token - this will fail authentication', account.id);
+            setQrValue(`${FRONTEND_BASE_URL}/#/view?id=${account.id}`);
+        }
+    }, [account]);
 
     if (!account) {
         return (

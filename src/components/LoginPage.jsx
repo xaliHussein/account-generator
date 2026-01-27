@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
-
-/**
- * Default credentials - CHANGE THESE to your own
- */
-const DEFAULT_USERNAME = 'ali_shaker';
-const DEFAULT_PASSWORD = 'sS1212##$$';
+import { login as apiLogin, logout as apiLogout, getCurrentUser } from '../services/api';
 
 /**
  * Login Page Component
- * Protects the account generator from unauthorized access
+ * Protects the account generator from unauthorized access using Laravel Sanctum
  */
 const LoginPage = ({ onLogin }) => {
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -21,18 +16,24 @@ const LoginPage = ({ onLogin }) => {
         setError('');
         setIsLoading(true);
 
-        // Simulate a small delay for security
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        if (username === DEFAULT_USERNAME && password === DEFAULT_PASSWORD) {
-            // Store auth in sessionStorage (cleared when browser closes)
+        try {
+            const response = await apiLogin(email, password);
+            // Store user data in sessionStorage
             sessionStorage.setItem('isAuthenticated', 'true');
+            sessionStorage.setItem('user', JSON.stringify(response.user));
             onLogin();
-        } else {
-            setError('Invalid username or password');
+        } catch (err) {
+            console.error('Login error:', err);
+            if (err.response?.status === 422) {
+                setError(err.response.data.message || 'Invalid email or password');
+            } else if (err.response?.data?.message) {
+                setError(err.response.data.message);
+            } else {
+                setError('Login failed. Please check your credentials and try again.');
+            }
+        } finally {
+            setIsLoading(false);
         }
-
-        setIsLoading(false);
     };
 
     return (
@@ -62,15 +63,15 @@ const LoginPage = ({ onLogin }) => {
                     )}
 
                     <div className="login-field">
-                        <label htmlFor="username">Username</label>
+                        <label htmlFor="email">Email</label>
                         <input
-                            type="text"
-                            id="username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Enter username"
+                            type="email"
+                            id="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="Enter your email"
                             required
-                            autoComplete="username"
+                            autoComplete="email"
                             disabled={isLoading}
                         />
                     </div>
@@ -117,10 +118,25 @@ export const isAuthenticated = () => {
 };
 
 /**
+ * Get current user from session
+ */
+export const getUser = () => {
+    const user = sessionStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+};
+
+/**
  * Logout user
  */
-export const logout = () => {
+export const logout = async () => {
+    try {
+        await apiLogout();
+    } catch (err) {
+        console.error('Logout error:', err);
+    }
     sessionStorage.removeItem('isAuthenticated');
+    sessionStorage.removeItem('user');
 };
 
 export default LoginPage;
+

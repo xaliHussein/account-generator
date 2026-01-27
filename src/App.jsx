@@ -22,7 +22,6 @@ import useOperationLog from './hooks/useOperationLog';
 import useToast from './hooks/useToast';
 
 // Services
-import { generateAccounts } from './services/accountGenerator';
 import { downloadAccountPDF, downloadCardBackPDF, downloadPrintSheetPDF } from './services/pdfGenerator';
 import { downloadAccountsZip, exportAccountsAsJSON, exportAccountsAsCSV } from './services/zipExporter';
 
@@ -54,13 +53,18 @@ function App() {
     const [emailType, setEmailType] = useState('random'); // 'random', 'icloud', or 'gmail'
     const [accountIdType, setAccountIdType] = useState('apple'); // 'apple' or 'google'
 
+    // Print Sheet Size (default 60cm x 90cm)
+    const [boardWidth, setBoardWidth] = useState('');
+    const [boardHeight, setBoardHeight] = useState('');
+
     // Custom hooks
     const {
         accounts,
         count: totalAccounts,
         todayCount,
         successRate,
-        addAccounts,
+        loading: accountsLoading,
+        generateAccountsApi,
         removeAccount,
         clearAccounts,
         getAccount,
@@ -99,26 +103,28 @@ function App() {
         setGenerateProgress({ current: 0, total: count, percentage: 0, status: 'generating' });
 
         try {
-            const newAccounts = await generateAccounts(count, (progress) => {
-                setGenerateProgress(progress);
-            }, { emailType });
+            // Use server API to generate cards
+            const newAccounts = await generateAccountsApi(count, emailType, cardColor);
 
-            addAccounts(newAccounts);
+            setGenerateProgress({ current: count, total: count, percentage: 100, status: 'complete' });
             logCreate(count);
-            setSelectedAccountId(newAccounts[0].id);
+
+            if (newAccounts.length > 0) {
+                setSelectedAccountId(newAccounts[0].id);
+            }
 
             toast.success(
                 'Accounts Generated!',
-                `Successfully created ${count.toLocaleString()} accounts`
+                `Successfully created ${count.toLocaleString()} accounts (synced to server)`
             );
         } catch (error) {
             console.error('Generation failed:', error);
-            toast.error('Generation Failed', error.message);
+            toast.error('Generation Failed', error.response?.data?.message || error.message);
         } finally {
             setIsGenerating(false);
             setGenerateProgress(null);
         }
-    }, [addAccounts, logCreate, toast, emailType]);
+    }, [generateAccountsApi, logCreate, toast, emailType, cardColor]);
 
     /**
      * Handle account deletion
@@ -127,20 +133,26 @@ function App() {
         setDeleteModal({ open: true, accountId });
     }, []);
 
-    const confirmDelete = useCallback(() => {
+    const confirmDelete = useCallback(async () => {
         const { accountId } = deleteModal;
-        removeAccount(accountId);
-        logDelete(1);
 
-        // Select next account if deleted was selected
-        if (selectedAccountId === accountId) {
-            const index = accounts.findIndex(a => a.id === accountId);
-            const nextAccount = accounts[index + 1] || accounts[index - 1];
-            setSelectedAccountId(nextAccount?.id || null);
+        try {
+            await removeAccount(accountId);
+            logDelete(1);
+
+            // Select next account if deleted was selected
+            if (selectedAccountId === accountId) {
+                const index = accounts.findIndex(a => a.id === accountId);
+                const nextAccount = accounts[index + 1] || accounts[index - 1];
+                setSelectedAccountId(nextAccount?.id || null);
+            }
+
+            toast.success('Account Deleted', 'Account has been removed from server');
+        } catch (error) {
+            toast.error('Delete Failed', error.response?.data?.message || error.message);
+        } finally {
+            setDeleteModal({ open: false, accountId: null });
         }
-
-        toast.success('Account Deleted', 'Account has been removed');
-        setDeleteModal({ open: false, accountId: null });
     }, [deleteModal, removeAccount, logDelete, selectedAccountId, accounts, toast]);
 
     /**
@@ -150,13 +162,19 @@ function App() {
         setClearAllModal(true);
     }, []);
 
-    const confirmClearAll = useCallback(() => {
+    const confirmClearAll = useCallback(async () => {
         const count = accounts.length;
-        clearAccounts();
-        logClearAll(count);
-        setSelectedAccountId(null);
-        toast.success('All Accounts Cleared', `Removed ${count.toLocaleString()} accounts`);
-        setClearAllModal(false);
+
+        try {
+            await clearAccounts();
+            logClearAll(count);
+            setSelectedAccountId(null);
+            toast.success('All Accounts Cleared', `Removed ${count.toLocaleString()} accounts from server`);
+        } catch (error) {
+            toast.error('Clear Failed', error.response?.data?.message || error.message);
+        } finally {
+            setClearAllModal(false);
+        }
     }, [accounts.length, clearAccounts, logClearAll, toast]);
 
     /**
@@ -223,9 +241,13 @@ function App() {
         setExportProgress({ current: 0, total: accounts.length, percentage: 0, status: 'creating-sheet' });
 
         try {
+            // Convert cm to mm (default: 60cm x 90cm = 600mm x 900mm)
+            const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
+            const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
+
             await downloadPrintSheetPDF(accounts, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, undefined, cardColor);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm);
 
             logDownload(accounts.length);
             toast.success(
@@ -239,7 +261,7 @@ function App() {
             setIsExporting(false);
             setExportProgress(null);
         }
-    }, [accounts, logDownload, toast, customLogo, cardColor]);
+    }, [accounts, logDownload, toast, customLogo, cardColor, boardWidth, boardHeight]);
 
     /**
      * Handle single PDF download
@@ -672,6 +694,56 @@ function App() {
                                             color: 'var(--color-text-tertiary)'
                                         }}>
                                             Applied to newly generated accounts
+                                        </span>
+                                    </div>
+
+                                    {/* Print Sheet Size */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        <label style={{
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 'var(--font-weight-medium)',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>Print Sheet Size (cm)</label>
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                                            <input
+                                                type="number"
+                                                placeholder="60"
+                                                value={boardWidth}
+                                                onChange={(e) => setBoardWidth(e.target.value)}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: '1px solid var(--border-color-strong)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: 'var(--color-bg-secondary)',
+                                                    fontSize: 'var(--font-size-md)',
+                                                    color: 'var(--color-text-primary)',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                            <span style={{ color: 'var(--color-text-tertiary)' }}>×</span>
+                                            <input
+                                                type="number"
+                                                placeholder="90"
+                                                value={boardHeight}
+                                                onChange={(e) => setBoardHeight(e.target.value)}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                    border: '1px solid var(--border-color-strong)',
+                                                    borderRadius: 'var(--border-radius-md)',
+                                                    background: 'var(--color-bg-secondary)',
+                                                    fontSize: 'var(--font-size-md)',
+                                                    color: 'var(--color-text-primary)',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                        </div>
+                                        <span style={{
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'var(--color-text-tertiary)'
+                                        }}>
+                                            Leave empty for default 60cm × 90cm (~100 cards/page)
                                         </span>
                                     </div>
                                 </div>

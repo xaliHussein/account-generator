@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { decryptData } from '../services/encryption';
+import { getCardData, submitPhoneNumber } from '../services/api';
 
 // Color definitions matching the card colors
 const CARD_COLORS = {
@@ -10,7 +10,7 @@ const CARD_COLORS = {
 
 /**
  * View Account Page - Displays account information from QR code scan
- * URL format: /view?data=encryptedBase64Data
+ * URL format: /view?id=cardUUID (new) or /view?data=encryptedBase64Data (legacy)
  */
 const ViewAccountPage = () => {
     const [searchParams] = useSearchParams();
@@ -18,30 +18,94 @@ const ViewAccountPage = () => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Phone collection state
+    const [showPhoneModal, setShowPhoneModal] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [phoneError, setPhoneError] = useState('');
+    const [submittingPhone, setSubmittingPhone] = useState(false);
+    const [phoneSubmitted, setPhoneSubmitted] = useState(false);
+
     useEffect(() => {
-        const decodeData = async () => {
-            const dataParam = searchParams.get('data');
+        const loadData = async () => {
+            // Check for API-based card ID and token
+            const cardId = searchParams.get('id');
+            const token = searchParams.get('token');
 
-            if (!dataParam) {
-                setError('No account data provided');
-                setLoading(false);
-                return;
-            }
+            if (cardId) {
+                // Fetch from backend API with token
+                try {
+                    const data = await getCardData(cardId, token);
+                    setAccountData({ ...data, cardId });
 
-            try {
-                // Decrypt the data using our encryption service
-                const decrypted = await decryptData(decodeURIComponent(dataParam));
-                setAccountData(decrypted);
-                setLoading(false);
-            } catch (err) {
-                console.error('Failed to decrypt account data:', err);
-                setError('Invalid or tampered data. This QR code cannot be verified.');
-                setLoading(false);
+                    // Show phone modal if this is first scan
+                    if (data.is_first_scan) {
+                        setShowPhoneModal(true);
+                    }
+
+                    setLoading(false);
+                } catch (err) {
+                    console.error('Failed to fetch card data:', err);
+                    if (err.response?.status === 403) {
+                        setError('Access denied. This QR code may be invalid or expired.');
+                    } else if (err.response?.status === 404) {
+                        setError('Card not found. This QR code may be invalid.');
+                    } else {
+                        setError('Failed to load card data. Please try again.');
+                    }
+                    setLoading(false);
+                }
+            } else {
+                // Legacy: Check for encrypted data parameter
+                const dataParam = searchParams.get('data');
+                if (dataParam) {
+                    try {
+                        const { decryptData } = await import('../services/encryption');
+                        const decrypted = await decryptData(decodeURIComponent(dataParam));
+                        setAccountData(decrypted);
+                        setLoading(false);
+                    } catch (err) {
+                        console.error('Failed to decrypt account data:', err);
+                        setError('Invalid or tampered data. This QR code cannot be verified.');
+                        setLoading(false);
+                    }
+                } else {
+                    setError('No card data provided');
+                    setLoading(false);
+                }
             }
         };
 
-        decodeData();
+        loadData();
     }, [searchParams]);
+
+    const handlePhoneSubmit = async (e) => {
+        e.preventDefault();
+        setPhoneError('');
+
+        if (!phoneNumber.trim()) {
+            setPhoneError('Please enter your phone number');
+            return;
+        }
+
+        // Basic phone validation
+        const phoneRegex = /^[\+]?[0-9]{7,15}$/;
+        if (!phoneRegex.test(phoneNumber.replace(/[\s\-]/g, ''))) {
+            setPhoneError('Please enter a valid phone number');
+            return;
+        }
+
+        setSubmittingPhone(true);
+        try {
+            await submitPhoneNumber(accountData.cardId, phoneNumber);
+            setPhoneSubmitted(true);
+            setShowPhoneModal(false);
+        } catch (err) {
+            console.error('Failed to submit phone number:', err);
+            setPhoneError(err.response?.data?.message || 'Failed to save phone number. Please try again.');
+        } finally {
+            setSubmittingPhone(false);
+        }
+    };
 
     // Determine if email is iCloud or Gmail
     const getAccountType = (email) => {
@@ -61,7 +125,7 @@ const ViewAccountPage = () => {
                 <div className="view-account-container">
                     <div className="view-account-loading">
                         <div className="spinner"></div>
-                        <p>Decrypting account data...</p>
+                        <p>Loading account data...</p>
                     </div>
                 </div>
             </div>
@@ -79,10 +143,10 @@ const ViewAccountPage = () => {
                             <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
                     </div>
-                    <h1>Security Error</h1>
+                    <h1>Error</h1>
                     <p>{error}</p>
                     <p style={{ fontSize: '0.85em', color: '#888', marginTop: '1rem' }}>
-                        This data may have been modified or corrupted.
+                        Please contact support if this problem persists.
                     </p>
                 </div>
             </div>
@@ -107,7 +171,52 @@ const ViewAccountPage = () => {
 
     return (
         <div className="view-account-page" style={{ '--theme-color': themeColor }}>
+            {/* Phone Collection Modal */}
+            {showPhoneModal && (
+                <div className="phone-modal-overlay">
+                    <div className="phone-modal">
+                        <div className="phone-modal-header" style={{ background: themeColor }}>
+                            <h2>Welcome!</h2>
+                            <p>To activate your account, please enter your phone number</p>
+                        </div>
+                        <form onSubmit={handlePhoneSubmit} className="phone-modal-form">
+                            {phoneError && (
+                                <div className="phone-error">
+                                    {phoneError}
+                                </div>
+                            )}
+                            <div className="phone-input-group">
+                                <label>Phone Number</label>
+                                <input
+                                    type="tel"
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    placeholder="+1234567890"
+                                    autoFocus
+                                    disabled={submittingPhone}
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                className="phone-submit-btn"
+                                style={{ background: themeColor }}
+                                disabled={submittingPhone}
+                            >
+                                {submittingPhone ? 'Saving...' : 'Continue'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             <div className="view-account-container">
+                {/* Success message after phone submission */}
+                {phoneSubmitted && (
+                    <div className="phone-success-banner" style={{ background: '#22c55e' }}>
+                        ✓ Account activated successfully!
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="view-account-header" style={{ background: themeColor }}>
                     <div className="view-account-icon">
@@ -160,6 +269,16 @@ const ViewAccountPage = () => {
                             <label>Last Name</label>
                             <div className="view-account-value">{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'N/A'}</div>
                         </div>
+
+                        {accountData.phoneNumber && (
+                            <div className="view-account-field">
+                                <label>Phone</label>
+                                <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.phoneNumber)}>
+                                    {accountData.phoneNumber}
+                                    <span className="copy-hint">Tap to copy</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Credentials */}
@@ -213,3 +332,4 @@ const ViewAccountPage = () => {
 };
 
 export default ViewAccountPage;
+
