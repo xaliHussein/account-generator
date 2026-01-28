@@ -7,7 +7,8 @@ import CardBack from './CardBack';
 import Card from './ui/Card';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
-    Download, FileArchive, Printer, Upload, Eye, Settings, Check, List
+    Download, FileArchive, Printer, Upload, Eye, Settings, Check, List,
+    ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 /**
@@ -18,6 +19,12 @@ const StoreManagement = () => {
     const [stores, setStores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Sort order state with localStorage persistence
+    const [sortOrder, setSortOrder] = useState(() => {
+        const saved = localStorage.getItem('storesSortOrder');
+        return saved || 'desc'; // default: newest first
+    });
 
     // Form states
     const [showCreateForm, setShowCreateForm] = useState(false);
@@ -396,15 +403,30 @@ const StoreManagement = () => {
 
     return (
         <div className="store-management">
-            <div className="stores-header">
+            <div className="section-header">
                 <h2>Store Management</h2>
-                <button
-                    onClick={() => setShowCreateForm(true)}
-                    className="btn btn-accent"
-                    disabled={actionLoading}
-                >
-                    <Plus size={18} /> Add Store
-                </button>
+                <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                    <button
+                        onClick={() => {
+                            const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+                            setSortOrder(newOrder);
+                            localStorage.setItem('storesSortOrder', newOrder);
+                        }}
+                        className="btn btn-ghost"
+                        title={sortOrder === 'desc' ? 'Showing newest first' : 'Showing oldest first'}
+                        style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}
+                    >
+                        {sortOrder === 'desc' ? <ArrowDown size={16} /> : <ArrowUp size={16} />}
+                        {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                    </button>
+                    <button
+                        onClick={() => setShowCreateForm(true)}
+                        className="btn btn-accent"
+                        disabled={actionLoading}
+                    >
+                        <Plus size={18} /> Add Store
+                    </button>
+                </div>
             </div>
 
             {error && (
@@ -1135,7 +1157,11 @@ const StoreManagement = () => {
                 </div>
             ) : (
                 <div className="stores-grid">
-                    {stores.map((store) => (
+                    {[...stores].sort((a, b) => {
+                        const dateA = new Date(a.created_at || 0);
+                        const dateB = new Date(b.created_at || 0);
+                        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+                    }).map((store) => (
                         <div key={store.id} className="store-card">
                             <div className="store-card-header">
                                 <div className="store-icon">

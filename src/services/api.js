@@ -249,4 +249,15 @@ export const clearSystemCards = async () => {
     return response.data;
 };
 
+/**
+ * Transfer system cards to a specific store
+ */
+export const transferSystemCards = async (cardIds, storeId) => {
+    const response = await api.post('/api/system/cards/transfer', {
+        card_ids: cardIds,
+        store_id: storeId,
+    });
+    return response.data;
+};
+
 export default api;

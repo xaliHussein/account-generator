@@ -6,6 +6,7 @@ import ViewAccountPage from './components/ViewAccountPage.jsx'
 import LoginPage, { isAuthenticated, logout } from './components/LoginPage.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import StoreManagement from './components/StoreManagement.jsx'
+import SystemTransfer from './components/SystemTransfer.jsx'
 import './index.css'
 
 /**
@@ -22,6 +23,8 @@ const MainApp = () => {
             setCurrentView('dashboard');
         } else if (location.pathname.includes('stores')) {
             setCurrentView('stores');
+        } else if (location.pathname.includes('transfer')) {
+            setCurrentView('transfer');
         } else {
             setCurrentView('generator');
         }
@@ -64,6 +67,12 @@ const MainApp = () => {
                             Stores
                         </button>
                         <button
+                            className={`nav-link ${currentView === 'transfer' ? 'active' : ''}`}
+                            onClick={() => navigate('/transfer')}
+                        >
+                            Transfer
+                        </button>
+                        <button
                             className={`nav-link ${currentView === 'generator' ? 'active' : ''}`}
                             onClick={() => navigate('/generator')}
                         >
@@ -82,6 +91,7 @@ const MainApp = () => {
                     <Route path="/dashboard" element={<Dashboard onNavigateToStores={() => navigate('/stores')} />} />
                     <Route path="/stores" element={<StoreManagement />} />
                     <Route path="/generator" element={<App />} />
+                    <Route path="/transfer" element={<SystemTransfer />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </main>
