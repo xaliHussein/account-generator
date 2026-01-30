@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport } from '../services/api';
+import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, deleteBatch } from '../services/api';
 import { downloadAccountsZip } from '../services/zipExporter';
 import { downloadPrintSheetPDF, downloadAccountPDF, downloadCardBackPrintSheetPDF } from '../services/pdfGenerator';
 import AccountCard from './AccountCard';
@@ -8,7 +8,7 @@ import Card from './ui/Card';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
     Download, FileArchive, Printer, Upload, Eye, Settings, Check, List,
-    ArrowUpDown, ArrowUp, ArrowDown
+    ArrowUpDown, ArrowUp, ArrowDown, Search
 } from 'lucide-react';
 
 /**
@@ -38,6 +38,8 @@ const StoreManagement = () => {
     const [cardsByBatch, setCardsByBatch] = useState({}); // Cards grouped by batch ID
     const [selectedBatchId, setSelectedBatchId] = useState(null); // Currently selected batch for export
     const [selectedPreviewCard, setSelectedPreviewCard] = useState(null);
+    const [confirmDeleteBatch, setConfirmDeleteBatch] = useState(null); // Batch ID to confirm deletion
+    const [batchSearchQuery, setBatchSearchQuery] = useState('');
 
     // Create/Edit form data
     const [formData, setFormData] = useState({
@@ -299,6 +301,35 @@ const StoreManagement = () => {
         }
     };
 
+    // Delete an entire batch - show confirmation modal
+    const handleDeleteBatch = (batchId) => {
+        if (!selectedStore) return;
+        if (batchId === 'legacy') {
+            setError('Cannot delete legacy cards batch');
+            return;
+        }
+        setConfirmDeleteBatch(batchId);
+    };
+
+    // Confirm batch deletion
+    const confirmBatchDeletion = async () => {
+        if (!confirmDeleteBatch || !selectedStore) return;
+        setActionLoading(true);
+        try {
+            await deleteBatch(selectedStore.id, confirmDeleteBatch);
+            setConfirmDeleteBatch(null);
+            // Refresh cards after deletion
+            await handleViewCards(selectedStore);
+            // Reload stores to update counts
+            loadStores();
+        } catch (err) {
+            console.error('Batch deletion failed:', err);
+            setError('Failed to delete batch');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     // Logo upload handlers
     const handleLogoUpload = (event) => {
         const file = event.target.files?.[0];
@@ -374,11 +405,6 @@ const StoreManagement = () => {
                 }, {});
 
                 setCardsByBatch(grouped);
-                // Select the most recent batch by default (first in the list since ordered by desc)
-                const batchKeys = Object.keys(grouped);
-                if (batchKeys.length > 0) {
-                    setSelectedBatchId(batchKeys[0]);
-                }
 
                 setShowExportModal(true);
             } else {
@@ -403,6 +429,156 @@ const StoreManagement = () => {
 
     return (
         <div className="store-management">
+            {/* Batch Delete Confirmation Modal */}
+            {confirmDeleteBatch && (
+                <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                    <div className="modal-content" style={{
+                        maxWidth: '400px',
+                        textAlign: 'center',
+                        background: 'var(--color-bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--border-radius-lg)',
+                        padding: 'var(--spacing-xl)',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                            <AlertCircle size={48} style={{ color: 'var(--color-accent-red)', marginBottom: 'var(--spacing-md)' }} />
+                            <h3 style={{ marginBottom: 'var(--spacing-sm)' }}>Delete Batch</h3>
+                            <p style={{ color: 'var(--color-text-secondary)' }}>
+                                Are you sure you want to delete this entire batch? This action cannot be undone.
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 'var(--spacing-md)', justifyContent: 'center' }}>
+                            <button
+                                onClick={() => setConfirmDeleteBatch(null)}
+                                className="btn btn-secondary-enhanced"
+                                disabled={actionLoading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmBatchDeletion}
+                                className="btn"
+                                disabled={actionLoading}
+                                style={{
+                                    background: 'var(--color-accent-red)',
+                                    color: 'white',
+                                    border: 'none'
+                                }}
+                            >
+                                {actionLoading ? 'Deleting...' : 'Delete Batch'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Batch Accounts Modal */}
+            {selectedBatchId && cardsByBatch[selectedBatchId] && (
+                <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                    <div className="modal-content" style={{
+                        maxWidth: '800px',
+                        maxHeight: '80vh',
+                        background: 'var(--color-bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--border-radius-lg)',
+                        padding: 'var(--spacing-xl)',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                            <h3>
+                                <List size={20} style={{ marginRight: 'var(--spacing-sm)', verticalAlign: 'middle' }} />
+                                Batch Accounts ({cardsByBatch[selectedBatchId].cards.length} cards)
+                            </h3>
+                            <button
+                                onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); }}
+                                className="btn btn-ghost"
+                                style={{ padding: 'var(--spacing-xs)' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{
+                            marginBottom: 'var(--spacing-md)',
+                            position: 'relative'
+                        }}>
+                            <Search size={16} style={{
+                                position: 'absolute',
+                                left: 'var(--spacing-sm)',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: 'var(--color-text-secondary)'
+                            }} />
+                            <input
+                                type="text"
+                                placeholder="Search by email, name, phone, or serial..."
+                                value={batchSearchQuery}
+                                onChange={(e) => setBatchSearchQuery(e.target.value)}
+                                className="form-input"
+                                style={{
+                                    width: '100%',
+                                    paddingLeft: 'calc(var(--spacing-sm) + 24px)',
+                                    background: 'var(--color-bg-secondary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--border-radius-md)'
+                                }}
+                            />
+                        </div>
+                        <div style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--border-radius-md)'
+                        }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Name</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cardsByBatch[selectedBatchId].cards
+                                        .filter(card => {
+                                            if (!batchSearchQuery) return true;
+                                            const query = batchSearchQuery.toLowerCase();
+                                            return (
+                                                card.email?.toLowerCase().includes(query) ||
+                                                card.firstName?.toLowerCase().includes(query) ||
+                                                card.lastName?.toLowerCase().includes(query) ||
+                                                card.phone?.toLowerCase().includes(query) ||
+                                                card.accountId?.toLowerCase().includes(query) ||
+                                                card.sn?.toLowerCase().includes(query)
+                                            );
+                                        })
+                                        .map((card, index) => (
+                                            <tr key={card.id || index} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.email}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.firstName} {card.lastName}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone || '—'}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.accountId || card.sn || 'N/A'}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                                    {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style={{ marginTop: 'var(--spacing-lg)', textAlign: 'right' }}>
+                            <button onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); }} className="btn btn-primary-enhanced">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="section-header">
                 <h2>Store Management</h2>
                 <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
@@ -599,9 +775,9 @@ const StoreManagement = () => {
                                 />
                                 <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
                                     {generateData.email_prefix ? (
-                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'•'.repeat(22)}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
+                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code> <span style={{ opacity: 0.7 }}>(# = random digit)</span></>
                                     ) : (
-                                        'Optional: Enter 8 alphanumeric characters for email prefix'
+                                        'Optional: Enter up to 8 alphanumeric characters for email prefix'
                                     )}
                                 </span>
                             </div>
@@ -1079,6 +1255,34 @@ const StoreManagement = () => {
                                                             <Printer size={14} />
                                                             Card Backs
                                                         </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedBatchId(batchId);
+                                                                setShowExportModal(false);
+                                                            }}
+                                                            className="btn btn-primary-enhanced"
+                                                            style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                        >
+                                                            <List size={14} />
+                                                            View Accounts
+                                                        </button>
+                                                        {batchId !== 'legacy' && (
+                                                            <button
+                                                                onClick={() => handleDeleteBatch(batchId)}
+                                                                className="btn"
+                                                                disabled={actionLoading}
+                                                                style={{
+                                                                    fontSize: 'var(--font-size-sm)',
+                                                                    padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                                                    background: 'rgba(255, 59, 48, 0.1)',
+                                                                    color: 'var(--color-accent-red)',
+                                                                    border: '1px solid rgba(255, 59, 48, 0.3)'
+                                                                }}
+                                                            >
+                                                                <Trash2 size={14} />
+                                                                Delete
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}

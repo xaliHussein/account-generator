@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 // API base URL - update this for production
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -108,6 +109,22 @@ export const searchEmail = async (query) => {
     return response.data;
 };
 
+/**
+ * Get wallet dashboard statistics
+ */
+export const getWalletDashboardStats = async () => {
+    const response = await api.get('/api/dashboard/wallet');
+    return response.data;
+};
+
+/**
+ * Get wallet stores with card counts for dashboard
+ */
+export const getWalletDashboardStores = async () => {
+    const response = await api.get('/api/dashboard/wallet-stores');
+    return response.data;
+};
+
 // ==================== Stores ====================
 
 /**
@@ -186,6 +203,14 @@ export const generateCards = async (storeId, count, emailType = 'random', color 
  */
 export const toggleCardStatus = async (cardId) => {
     const response = await api.patch(`/api/cards/${cardId}/status`);
+    return response.data;
+};
+
+/**
+ * Delete all cards in a batch
+ */
+export const deleteBatch = async (storeId, batchId) => {
+    const response = await api.delete(`/api/stores/${storeId}/batches/${batchId}`);
     return response.data;
 };
 

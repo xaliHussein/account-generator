@@ -7,6 +7,8 @@ import LoginPage, { isAuthenticated, logout } from './components/LoginPage.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import StoreManagement from './components/StoreManagement.jsx'
 import SystemTransfer from './components/SystemTransfer.jsx'
+import WalletStoreManagement from './components/WalletStoreManagement.jsx'
+import WalletCardView from './components/WalletCardView.jsx'
 import './index.css'
 
 /**
@@ -21,6 +23,8 @@ const MainApp = () => {
     useEffect(() => {
         if (location.pathname.includes('dashboard')) {
             setCurrentView('dashboard');
+        } else if (location.pathname.includes('wallet-stores')) {
+            setCurrentView('wallet');
         } else if (location.pathname.includes('stores')) {
             setCurrentView('stores');
         } else if (location.pathname.includes('transfer')) {
@@ -67,6 +71,12 @@ const MainApp = () => {
                             Stores
                         </button>
                         <button
+                            className={`nav-link ${currentView === 'wallet' ? 'active' : ''}`}
+                            onClick={() => navigate('/wallet-stores')}
+                        >
+                            Wallet Cards
+                        </button>
+                        <button
                             className={`nav-link ${currentView === 'transfer' ? 'active' : ''}`}
                             onClick={() => navigate('/transfer')}
                         >
@@ -88,8 +98,9 @@ const MainApp = () => {
             {/* Main Content */}
             <main className="main-wrapper">
                 <Routes>
-                    <Route path="/dashboard" element={<Dashboard onNavigateToStores={() => navigate('/stores')} />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/stores" element={<StoreManagement />} />
+                    <Route path="/wallet-stores" element={<WalletStoreManagement />} />
                     <Route path="/generator" element={<App />} />
                     <Route path="/transfer" element={<SystemTransfer />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -123,6 +134,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Routes>
                 {/* Public route - anyone can view QR scanned data (must be before catch-all) */}
                 <Route path="/view" element={<ViewAccountPage />} />
+                {/* Public route - wallet card view */}
+                <Route path="/wallet/:token" element={<WalletCardView />} />
                 {/* Default route - redirect to protected app */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 {/* Legacy obscured URL - redirect to dashboard */}
@@ -133,3 +146,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </HashRouter>
     </React.StrictMode>,
 )
+

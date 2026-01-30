@@ -175,6 +175,31 @@ const ViewAccountPage = () => {
             {showPhoneModal && (
                 <div className="phone-modal-overlay">
                     <div className="phone-modal">
+                        <button
+                            type="button"
+                            onClick={() => setShowPhoneModal(false)}
+                            style={{
+                                position: 'absolute',
+                                top: '12px',
+                                right: '12px',
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: 'transparent',
+                                fontSize: '18px',
+                                fontWeight: 'bold',
+                                opacity: 0
+                            }}
+                            title=""
+                        >
+                            ✕
+                        </button>
                         <div className="phone-modal-header" style={{ background: themeColor }}>
                             <h2>Welcome!</h2>
                             <p>To activate your account, please enter your phone number</p>

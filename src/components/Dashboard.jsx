@@ -1,39 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail } from '../services/api';
-import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores } from '../services/api';
+import { searchWalletPhone, getWalletRecentScans } from '../services/walletApi';
+import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone } from 'lucide-react';
 
 /**
  * Dashboard Component
- * Shows overview of stores, cards, and activity
+ * Shows overview of stores, cards, and activity with card type switching
  */
-const Dashboard = ({ onNavigateToStores }) => {
+const Dashboard = () => {
+    const navigate = useNavigate();
+    const [cardType, setCardType] = useState(() => {
+        const saved = localStorage.getItem('dashboardCardType');
+        return saved || 'regular';
+    });
+
     const [stats, setStats] = useState(null);
     const [stores, setStores] = useState([]);
     const [recentActivity, setRecentActivity] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Email search state
-    const [emailSearchQuery, setEmailSearchQuery] = useState('');
-    const [emailSearchResults, setEmailSearchResults] = useState([]);
-    const [emailSearchLoading, setEmailSearchLoading] = useState(false);
+    // Search state (email for regular, phone for wallet)
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+
+    // Navigation handler based on card type
+    const handleNavigateToStores = () => {
+        navigate(cardType === 'wallet' ? '/wallet-stores' : '/stores');
+    };
 
     useEffect(() => {
         loadDashboardData();
-    }, []);
+    }, [cardType]);
+
+    useEffect(() => {
+        localStorage.setItem('dashboardCardType', cardType);
+    }, [cardType]);
 
     const loadDashboardData = async () => {
         setLoading(true);
         setError(null);
+        setSearchQuery('');
+        setSearchResults([]);
         try {
-            const [statsData, storesData, activityData] = await Promise.all([
-                getDashboardStats(),
-                getDashboardStores(),
-                getRecentActivity(),
-            ]);
-            setStats(statsData);
-            setStores(storesData);
-            setRecentActivity(activityData);
+            if (cardType === 'regular') {
+                const [statsData, storesData, activityData] = await Promise.all([
+                    getDashboardStats(),
+                    getDashboardStores(),
+                    getRecentActivity(),
+                ]);
+                setStats(statsData);
+                setStores(storesData);
+                setRecentActivity(activityData);
+            } else {
+                const [statsData, storesData, activityData] = await Promise.all([
+                    getWalletDashboardStats(),
+                    getWalletDashboardStores(),
+                    getWalletRecentScans(),
+                ]);
+                setStats(statsData);
+                setStores(storesData);
+                setRecentActivity(activityData);
+            }
         } catch (err) {
             console.error('Failed to load dashboard data:', err);
             setError('Failed to load dashboard data. Please try again.');
@@ -42,23 +72,28 @@ const Dashboard = ({ onNavigateToStores }) => {
         }
     };
 
-    // Email search handler
-    const handleEmailSearch = async (query) => {
-        setEmailSearchQuery(query);
+    // Search handler - email for regular, phone for wallet
+    const handleSearch = async (query) => {
+        setSearchQuery(query);
         if (query.length < 2) {
-            setEmailSearchResults([]);
+            setSearchResults([]);
             return;
         }
 
-        setEmailSearchLoading(true);
+        setSearchLoading(true);
         try {
-            const response = await searchEmail(query);
-            setEmailSearchResults(response.results || []);
+            if (cardType === 'regular') {
+                const response = await searchEmail(query);
+                setSearchResults(response.results || []);
+            } else {
+                const response = await searchWalletPhone(query);
+                setSearchResults(response.results || []);
+            }
         } catch (err) {
-            console.error('Email search failed:', err);
-            setEmailSearchResults([]);
+            console.error('Search failed:', err);
+            setSearchResults([]);
         } finally {
-            setEmailSearchLoading(false);
+            setSearchLoading(false);
         }
     };
 
@@ -86,11 +121,63 @@ const Dashboard = ({ onNavigateToStores }) => {
     return (
         <div className="dashboard">
             <div className="dashboard-header">
-                <h2>Dashboard</h2>
-                <p>Overview of your stores and cards</p>
+                <div>
+                    <h2>Dashboard</h2>
+                    <p>Overview of your {cardType === 'regular' ? 'stores and cards' : 'wallet stores and cards'}</p>
+                </div>
+                {/* Card Type Toggle */}
+                <div style={{
+                    display: 'flex',
+                    gap: '4px',
+                    background: 'var(--color-bg-tertiary)',
+                    padding: '4px',
+                    borderRadius: 'var(--border-radius-lg)',
+                    border: '1px solid var(--border-color)'
+                }}>
+                    <button
+                        onClick={() => setCardType('regular')}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 16px',
+                            border: 'none',
+                            borderRadius: 'var(--border-radius-md)',
+                            cursor: 'pointer',
+                            fontSize: 'var(--font-size-sm)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            transition: 'all 0.2s ease',
+                            background: cardType === 'regular' ? 'var(--color-accent-blue)' : 'transparent',
+                            color: cardType === 'regular' ? 'white' : 'var(--color-text-secondary)'
+                        }}
+                    >
+                        <CreditCard size={16} />
+                        Regular Cards
+                    </button>
+                    <button
+                        onClick={() => setCardType('wallet')}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 16px',
+                            borderRadius: 'var(--border-radius-md)',
+                            cursor: 'pointer',
+                            fontSize: 'var(--font-size-sm)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            transition: 'all 0.2s ease',
+                            background: cardType === 'wallet' ? 'linear-gradient(135deg, #0a1628 0%, #132b50 100%)' : 'transparent',
+                            color: cardType === 'wallet' ? '#00c8ff' : 'var(--color-text-secondary)',
+                            border: cardType === 'wallet' ? '1px solid rgba(0, 200, 255, 0.3)' : 'none'
+                        }}
+                    >
+                        <Wallet size={16} />
+                        Wallet Cards
+                    </button>
+                </div>
             </div>
 
-            {/* Stats Cards */}
+            {/* Stats Cards - Different for regular vs wallet */}
             <div className="dashboard-stats">
                 <div className="stat-card">
                     <div className="stat-icon stores">
@@ -98,7 +185,7 @@ const Dashboard = ({ onNavigateToStores }) => {
                     </div>
                     <div className="stat-content">
                         <div className="stat-value">{stats?.stores?.total || 0}</div>
-                        <div className="stat-label">Total Stores</div>
+                        <div className="stat-label">{cardType === 'regular' ? 'Total Stores' : 'Wallet Stores'}</div>
                         <div className="stat-detail">
                             <span className="active">{stats?.stores?.active || 0} active</span>
                         </div>
@@ -107,27 +194,44 @@ const Dashboard = ({ onNavigateToStores }) => {
 
                 <div className="stat-card">
                     <div className="stat-icon cards">
-                        <CreditCard size={24} />
+                        {cardType === 'regular' ? <CreditCard size={24} /> : <Wallet size={24} />}
                     </div>
                     <div className="stat-content">
                         <div className="stat-value">{stats?.cards?.total || 0}</div>
-                        <div className="stat-label">Total Cards</div>
+                        <div className="stat-label">{cardType === 'regular' ? 'Total Cards' : 'Wallet Cards'}</div>
                         <div className="stat-detail">
-                            <span className="active">{stats?.cards?.active || 0} active</span>
-                            <span className="inactive">{stats?.cards?.inactive || 0} inactive</span>
+                            {cardType === 'regular' ? (
+                                <>
+                                    <span className="active">{stats?.cards?.active || 0} active</span>
+                                    <span className="inactive">{stats?.cards?.inactive || 0} inactive</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="active">{stats?.cards?.active || 0} active</span>
+                                    <span className="inactive">{stats?.cards?.locked || 0} locked</span>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 <div className="stat-card">
                     <div className="stat-icon scanned">
-                        <Users size={24} />
+                        {cardType === 'regular' ? <Users size={24} /> : <Lock size={24} />}
                     </div>
                     <div className="stat-content">
-                        <div className="stat-value">{stats?.cards?.scanned || 0}</div>
-                        <div className="stat-label">Scanned Cards</div>
+                        <div className="stat-value">
+                            {cardType === 'regular' ? (stats?.cards?.scanned || 0) : (stats?.cards?.locked || 0)}
+                        </div>
+                        <div className="stat-label">
+                            {cardType === 'regular' ? 'Scanned Cards' : 'Locked Cards'}
+                        </div>
                         <div className="stat-detail">
-                            <span className="pending">{stats?.cards?.unscanned || 0} pending</span>
+                            {cardType === 'regular' ? (
+                                <span className="pending">{stats?.cards?.unscanned || 0} pending</span>
+                            ) : (
+                                <span className="pending">{stats?.cards?.with_phone || 0} with phone</span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -138,22 +242,36 @@ const Dashboard = ({ onNavigateToStores }) => {
                     </div>
                     <div className="stat-content">
                         <div className="stat-value">
-                            {stats?.cards?.total > 0
-                                ? Math.round((stats?.cards?.scanned / stats?.cards?.total) * 100)
-                                : 0}%
+                            {cardType === 'regular' ? (
+                                stats?.cards?.total > 0
+                                    ? Math.round((stats?.cards?.scanned / stats?.cards?.total) * 100)
+                                    : 0
+                            ) : (
+                                stats?.cards?.total > 0
+                                    ? Math.round((stats?.cards?.locked / stats?.cards?.total) * 100)
+                                    : 0
+                            )}%
                         </div>
-                        <div className="stat-label">Scan Rate</div>
+                        <div className="stat-label">
+                            {cardType === 'regular' ? 'Scan Rate' : 'Lock Rate'}
+                        </div>
                         <div className="stat-detail">
-                            <span>Cards activated by users</span>
+                            <span>{cardType === 'regular' ? 'Cards activated by users' : 'Cards saved by users'}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Email Search Section */}
+            {/* Search Section - Email for regular, Phone for wallet */}
             <div className="dashboard-section" style={{ marginBottom: 'var(--spacing-xl)' }}>
                 <div className="section-header">
-                    <h3><Mail size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Email Search</h3>
+                    <h3>
+                        {cardType === 'regular' ? (
+                            <><Mail size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Email Search</>
+                        ) : (
+                            <><Phone size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Phone Search</>
+                        )}
+                    </h3>
                 </div>
                 <div style={{
                     padding: 'var(--spacing-md)',
@@ -172,9 +290,11 @@ const Dashboard = ({ onNavigateToStores }) => {
                             }} />
                             <input
                                 type="text"
-                                placeholder="Search for emails... (min 2 characters)"
-                                value={emailSearchQuery}
-                                onChange={(e) => handleEmailSearch(e.target.value)}
+                                placeholder={cardType === 'regular'
+                                    ? "Search for emails... (min 2 characters)"
+                                    : "Search by phone number... (min 2 characters)"}
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
                                 style={{
                                     width: '100%',
                                     padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -189,13 +309,13 @@ const Dashboard = ({ onNavigateToStores }) => {
                         </div>
                     </div>
 
-                    {emailSearchLoading && (
+                    {searchLoading && (
                         <div style={{ textAlign: 'center', padding: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
                             Searching...
                         </div>
                     )}
 
-                    {!emailSearchLoading && emailSearchQuery.length >= 2 && emailSearchResults.length === 0 && (
+                    {!searchLoading && searchQuery.length >= 2 && searchResults.length === 0 && (
                         <div style={{
                             textAlign: 'center',
                             padding: 'var(--spacing-lg)',
@@ -204,21 +324,23 @@ const Dashboard = ({ onNavigateToStores }) => {
                             borderRadius: 'var(--border-radius-md)'
                         }}>
                             <CheckCircle size={24} style={{ color: 'var(--color-accent-green)', marginBottom: '8px' }} />
-                            <p style={{ margin: 0 }}>No emails found matching "{emailSearchQuery}"</p>
-                            <span style={{ fontSize: 'var(--font-size-xs)' }}>This prefix is available for use</span>
+                            <p style={{ margin: 0 }}>No results found matching "{searchQuery}"</p>
+                            {cardType === 'regular' && (
+                                <span style={{ fontSize: 'var(--font-size-xs)' }}>This prefix is available for use</span>
+                            )}
                         </div>
                     )}
 
-                    {emailSearchResults.length > 0 && (
+                    {searchResults.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
                             <div style={{
                                 fontSize: 'var(--font-size-xs)',
                                 color: 'var(--color-text-tertiary)',
                                 marginBottom: 'var(--spacing-xs)'
                             }}>
-                                Found {emailSearchResults.length} email(s)
+                                Found {searchResults.length} result(s)
                             </div>
-                            {emailSearchResults.map((card) => (
+                            {searchResults.map((card) => (
                                 <div
                                     key={card.id}
                                     style={{
@@ -231,13 +353,17 @@ const Dashboard = ({ onNavigateToStores }) => {
                                         border: '1px solid var(--border-color)'
                                     }}
                                 >
-                                    <Mail size={16} style={{ color: 'var(--color-accent-blue)' }} />
+                                    {cardType === 'regular' ? (
+                                        <Mail size={16} style={{ color: 'var(--color-accent-blue)' }} />
+                                    ) : (
+                                        <Phone size={16} style={{ color: 'var(--color-accent-blue)' }} />
+                                    )}
                                     <span style={{
                                         fontFamily: 'monospace',
                                         flex: 1,
                                         fontWeight: 'var(--font-weight-medium)'
                                     }}>
-                                        {card.email}
+                                        {cardType === 'regular' ? card.email : card.phone_number}
                                     </span>
                                     <span style={{
                                         fontSize: 'var(--font-size-xs)',
@@ -258,7 +384,7 @@ const Dashboard = ({ onNavigateToStores }) => {
                                         fontSize: 'var(--font-size-xs)',
                                         color: 'var(--color-text-tertiary)'
                                     }}>
-                                        {new Date(card.created_at).toLocaleDateString()}
+                                        {new Date(card.updated_at || card.created_at).toLocaleDateString()}
                                     </span>
                                 </div>
                             ))}
@@ -270,18 +396,20 @@ const Dashboard = ({ onNavigateToStores }) => {
             {/* Stores Table */}
             <div className="dashboard-section">
                 <div className="section-header">
-                    <h3>Stores Overview</h3>
-                    <button onClick={onNavigateToStores} className="btn btn-secondary-enhanced">
-                        Manage Stores
+                    <h3>{cardType === 'regular' ? 'Stores Overview' : 'Wallet Stores Overview'}</h3>
+                    <button onClick={handleNavigateToStores} className="btn btn-secondary-enhanced">
+                        {cardType === 'regular' ? 'Manage Stores' : 'Manage Wallet Stores'}
                     </button>
                 </div>
 
                 {stores.length === 0 ? (
                     <div className="empty-state" style={{
                         padding: 'var(--spacing-2xl)',
-                        background: 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%)',
+                        background: cardType === 'wallet'
+                            ? 'linear-gradient(135deg, rgba(10, 22, 40, 0.5) 0%, rgba(19, 43, 80, 0.5) 100%)'
+                            : 'linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-bg-tertiary) 100%)',
                         borderRadius: 'var(--border-radius-lg)',
-                        border: '1px solid var(--border-color)',
+                        border: cardType === 'wallet' ? '1px solid rgba(0, 200, 255, 0.2)' : '1px solid var(--border-color)',
                         textAlign: 'center'
                     }}>
                         <div style={{
@@ -291,39 +419,47 @@ const Dashboard = ({ onNavigateToStores }) => {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(0, 136, 204, 0.05) 100%)',
+                            background: cardType === 'wallet'
+                                ? 'linear-gradient(135deg, rgba(0, 200, 255, 0.1) 0%, rgba(0, 200, 255, 0.05) 100%)'
+                                : 'linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(0, 136, 204, 0.05) 100%)',
                             borderRadius: 'var(--border-radius-lg)',
-                            border: '2px solid rgba(0, 136, 204, 0.2)'
+                            border: cardType === 'wallet' ? '2px solid rgba(0, 200, 255, 0.2)' : '2px solid rgba(0, 136, 204, 0.2)'
                         }}>
-                            <Store size={32} style={{ color: 'var(--color-accent-blue)' }} />
+                            {cardType === 'wallet' ? (
+                                <Wallet size={32} style={{ color: '#00c8ff' }} />
+                            ) : (
+                                <Store size={32} style={{ color: 'var(--color-accent-blue)' }} />
+                            )}
                         </div>
                         <p style={{
                             fontSize: 'var(--font-size-md)',
                             color: 'var(--color-text-secondary)',
                             marginBottom: 'var(--spacing-lg)',
                             lineHeight: 1.5
-                        }}>Create your first store to get started with account generation</p>
+                        }}>
+                            {cardType === 'regular'
+                                ? 'Create your first store to get started with account generation'
+                                : 'Create your first wallet store to get started with wallet cards'}
+                        </p>
                         <button
-                            onClick={onNavigateToStores}
+                            onClick={handleNavigateToStores}
                             className="btn-primary"
                             style={{
                                 padding: 'var(--spacing-sm) var(--spacing-xl)',
                                 fontSize: 'var(--font-size-md)',
                                 fontWeight: 'var(--font-weight-semibold)',
-                                background: 'linear-gradient(135deg, var(--color-accent-blue) 0%, #0077BB 100%)',
-                                boxShadow: '0 4px 12px rgba(0, 136, 204, 0.25)',
+                                background: cardType === 'wallet'
+                                    ? 'linear-gradient(135deg, #0a1628 0%, #132b50 100%)'
+                                    : 'linear-gradient(135deg, var(--color-accent-blue) 0%, #0077BB 100%)',
+                                boxShadow: cardType === 'wallet'
+                                    ? '0 4px 12px rgba(0, 200, 255, 0.25)'
+                                    : '0 4px 12px rgba(0, 136, 204, 0.25)',
+                                border: cardType === 'wallet' ? '1px solid rgba(0, 200, 255, 0.3)' : 'none',
+                                color: cardType === 'wallet' ? '#00c8ff' : 'white',
                                 transition: 'all 0.3s ease'
                             }}
-                            onMouseEnter={(e) => {
-                                e.target.style.transform = 'translateY(-2px)';
-                                e.target.style.boxShadow = '0 6px 16px rgba(0, 136, 204, 0.35)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.target.style.transform = 'translateY(0)';
-                                e.target.style.boxShadow = '0 4px 12px rgba(0, 136, 204, 0.25)';
-                            }}
                         >
-                            Create Store
+                            {cardType === 'regular' ? 'Create Store' : 'Create Wallet Store'}
                         </button>
                     </div>
                 ) : (
@@ -334,9 +470,9 @@ const Dashboard = ({ onNavigateToStores }) => {
                                     <th>Store Name</th>
                                     <th>Location</th>
                                     <th>Total Cards</th>
-                                    <th>Active</th>
-                                    <th>Inactive</th>
-                                    <th>Scanned</th>
+                                    <th>{cardType === 'regular' ? 'Active' : 'Active'}</th>
+                                    <th>{cardType === 'regular' ? 'Inactive' : 'Locked'}</th>
+                                    <th>{cardType === 'regular' ? 'Scanned' : 'With Phone'}</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -347,8 +483,12 @@ const Dashboard = ({ onNavigateToStores }) => {
                                         <td>{store.location || '-'}</td>
                                         <td>{store.cards_count || 0}</td>
                                         <td className="active-count">{store.active_cards_count || 0}</td>
-                                        <td className="inactive-count">{store.inactive_cards_count || 0}</td>
-                                        <td>{store.scanned_cards_count || 0}</td>
+                                        <td className="inactive-count">
+                                            {cardType === 'regular' ? (store.inactive_cards_count || 0) : (store.locked_cards_count || 0)}
+                                        </td>
+                                        <td>
+                                            {cardType === 'regular' ? (store.scanned_cards_count || 0) : (store.with_phone_cards_count || 0)}
+                                        </td>
                                         <td>
                                             {store.is_active ? (
                                                 <span className="status-badge active">
@@ -368,34 +508,38 @@ const Dashboard = ({ onNavigateToStores }) => {
                 )}
             </div>
 
-            {/* Recent Activity */}
+            {/* Recent Activity - Now shows for both card types */}
             <div className="dashboard-section">
                 <div className="section-header">
-                    <h3>Recent Scans</h3>
+                    <h3>
+                        {cardType === 'regular' ? 'Recent Scans' : 'Recent Locked Cards'}
+                    </h3>
                 </div>
 
                 {recentActivity?.recent_scans?.length === 0 ? (
                     <div className="empty-state small">
                         <Activity size={32} />
-                        <p>No scans yet</p>
+                        <p>
+                            {cardType === 'regular' ? 'No scans yet' : 'No locked cards yet'}
+                        </p>
                     </div>
                 ) : (
                     <div className="activity-list">
                         {recentActivity?.recent_scans?.map((scan) => (
                             <div key={scan.id} className="activity-item">
                                 <div className="activity-icon">
-                                    <Users size={16} />
+                                    {cardType === 'wallet' ? <Lock size={16} /> : <Users size={16} />}
                                 </div>
                                 <div className="activity-content">
                                     <div className="activity-title">
                                         {scan.first_name} {scan.last_name}
                                     </div>
                                     <div className="activity-detail">
-                                        Phone: {scan.phone_number} • Store: {scan.store?.name || 'Unknown'}
+                                        Phone: {scan.phone_number} • {cardType === 'wallet' ? 'Serial' : 'Store'}: {cardType === 'wallet' ? scan.serial_number : (scan.store?.name || 'Unknown')}
                                     </div>
                                 </div>
                                 <div className="activity-time">
-                                    {new Date(scan.scanned_at).toLocaleDateString()}
+                                    {new Date(scan.locked_at || scan.scanned_at).toLocaleDateString()}
                                 </div>
                             </div>
                         ))}

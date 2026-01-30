@@ -432,7 +432,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
     const width = boardWidth;
     const height = boardHeight;
     const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
-    
+
     // Calculate starting positions to center the grid on the page
     const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
     const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
@@ -440,10 +440,10 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
     const startY = (height - gridHeight) / 2;
 
     const totalPages = Math.ceil(accounts.length / cardsPerPage);
-    
+
     // Determine orientation based on dimensions
     const isLandscape = width >= height;
-    
+
     const pdf = new jsPDF({
         orientation: isLandscape ? 'landscape' : 'portrait',
         unit: 'mm',
@@ -479,7 +479,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
                     percentage: Math.round(((globalIndex + 1) / accounts.length) * 100),
                     status: 'creating-sheet'
                 });
-                
+
                 // Yield to event loop every 5 cards to allow UI to update
                 if ((globalIndex + 1) % 5 === 0) {
                     await new Promise(resolve => setTimeout(resolve, 0));
@@ -598,7 +598,7 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
     const iconSize = 10;
     const iconX = badgeX + (badgeWidth - iconSize) / 2; // Center horizontally with badge
     const iconY = badgeY - iconSize - 2; // 2mm gap above the badge
-    
+
     if (customLogo) {
         try {
             pdf.addImage(customLogo, 'PNG', iconX, iconY, iconSize, iconSize);
@@ -612,7 +612,7 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
 
     // VIP Badge
     const badgeText = `VIP-BATCH-${String(batchNumber).padStart(2, '0')}`;
-    
+
     pdf.setFillColor(0, 0, 0);
     pdf.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.2, 1.2, 'F');
     pdf.setTextColor(255, 255, 255);
@@ -624,7 +624,7 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
     const bottomY = y + height - cardPadding - 5;
     // Generate a fallback serial number for legacy accounts that don't have one
     const serialNumber = account.serialNumber || generateFallbackSN(account.id);
-    
+
     pdf.setFontSize(4);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(136, 136, 136);
@@ -669,12 +669,12 @@ const drawDefaultIconSmall = (pdf, x, y, size) => {
  */
 export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height) => {
     const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight);
-    
+
     // Create download link
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const boardInfo = `${boardWidth/10}x${boardHeight/10}cm`;
+    const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
     link.download = `print-sheet-${accounts.length}-cards-${boardInfo}-${new Date().toISOString().split('T')[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
@@ -701,7 +701,7 @@ export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
     const width = boardWidth;
     const height = boardHeight;
     const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
-    
+
     // Calculate starting positions to center the grid on the page
     const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
     const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
@@ -709,10 +709,10 @@ export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
     const startY = (height - gridHeight) / 2;
 
     const totalPages = Math.ceil(cardBackCount / cardsPerPage);
-    
+
     // Determine orientation based on dimensions
     const isLandscape = width >= height;
-    
+
     const pdf = new jsPDF({
         orientation: isLandscape ? 'landscape' : 'portrait',
         unit: 'mm',
@@ -747,7 +747,7 @@ export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
                     percentage: Math.round(((globalIndex + 1) / cardBackCount) * 100),
                     status: 'creating-cardback-sheet'
                 });
-                
+
                 // Yield to event loop every 5 cards to allow UI to update
                 if ((globalIndex + 1) % 5 === 0) {
                     await new Promise(resolve => setTimeout(resolve, 0));
@@ -841,12 +841,12 @@ const drawCardBackOnSheet = async (pdf, x, y, width, height, batchNumber, custom
  */
 export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
     const blob = await generateCardBackPrintSheetPDF(cardBackCount, onProgress, batchNumber, customLogo, cardColor, accountIdType, boardWidth, boardHeight);
-    
+
     // Create download link
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const boardInfo = `${boardWidth/10}x${boardHeight/10}cm`;
+    const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
     link.download = `card-backs-${cardBackCount}-${accountIdType}-${boardInfo}-${new Date().toISOString().split('T')[0]}.pdf`;
     document.body.appendChild(link);
     link.click();
