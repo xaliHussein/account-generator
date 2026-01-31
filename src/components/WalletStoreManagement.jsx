@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     getWalletStores, createWalletStore, updateWalletStore, deleteWalletStore,
-    generateWalletCards, getWalletStoreCards
+    generateWalletCards, getWalletStoreCards, getWalletBatchCards
 } from '../services/walletApi';
 import {
     downloadWalletPrintSheetPDF,
@@ -24,6 +24,11 @@ import {
  */
 const WalletStoreManagement = () => {
     const [stores, setStores] = useState([]);
+    const [storePage, setStorePage] = useState(1);
+    const [totalStorePages, setTotalStorePages] = useState(1);
+    const [totalStores, setTotalStores] = useState(0);
+    const STORES_PER_PAGE = 15;
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -38,7 +43,9 @@ const WalletStoreManagement = () => {
     const [showGenerateForm, setShowGenerateForm] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
     const [editingStore, setEditingStore] = useState(null);
+
     const [selectedStore, setSelectedStore] = useState(null);
+    const [currentViewStoreId, setCurrentViewStoreId] = useState(null);
 
     // Generated cards state
     const [generatedCards, setGeneratedCards] = useState([]);
@@ -47,7 +54,8 @@ const WalletStoreManagement = () => {
     const [selectedPreviewCard, setSelectedPreviewCard] = useState(null);
     const [batchSearchQuery, setBatchSearchQuery] = useState('');
     const [batchAccountsPage, setBatchAccountsPage] = useState(1);
-    const BATCH_ACCOUNTS_PER_PAGE = 25;
+
+    const BATCH_ACCOUNTS_PER_PAGE = 20;
 
     // Server-side pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -106,11 +114,33 @@ const WalletStoreManagement = () => {
         loadStores();
     }, []);
 
-    const loadStores = async () => {
+    const loadStores = async (page = 1) => {
         setLoading(true);
         try {
-            const data = await getWalletStores();
-            setStores(data);
+            const data = await getWalletStores(page, STORES_PER_PAGE);
+
+            let loadedStores = [];
+            // Handle Laravel pagination
+            if (data.data && Array.isArray(data.data)) {
+                loadedStores = data.data;
+                setTotalStores(data.total || 0);
+                setTotalStorePages(data.last_page || 1);
+            } else if (Array.isArray(data)) {
+                loadedStores = data;
+                setTotalStores(data.length);
+                setTotalStorePages(1);
+            }
+
+            // Client-side sort of the current page
+            // (In a full server-side implementation, we'd pass sort params to API)
+            const sorted = [...loadedStores].sort((a, b) => {
+                const dateA = new Date(a.created_at);
+                const dateB = new Date(b.created_at);
+                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+            });
+
+            setStores(sorted);
+            setStorePage(page);
         } catch (err) {
             console.error('Failed to load wallet stores:', err);
             setError('Failed to load wallet stores');
@@ -126,7 +156,7 @@ const WalletStoreManagement = () => {
             await createWalletStore(formData);
             setShowCreateForm(false);
             setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
-            await loadStores();
+            await loadStores(1); // Go to first page
         } catch (err) {
             console.error('Failed to create wallet store:', err);
             setError(err.response?.data?.message || 'Failed to create wallet store');
@@ -142,7 +172,7 @@ const WalletStoreManagement = () => {
             await updateWalletStore(editingStore.id, formData);
             setEditingStore(null);
             setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
-            await loadStores();
+            await loadStores(storePage); // Reload current page
         } catch (err) {
             console.error('Failed to update wallet store:', err);
             setError(err.response?.data?.message || 'Failed to update wallet store');
@@ -158,7 +188,7 @@ const WalletStoreManagement = () => {
         setActionLoading(true);
         try {
             await deleteWalletStore(storeId);
-            await loadStores();
+            await loadStores(storePage); // Reload current page
         } catch (err) {
             console.error('Failed to delete wallet store:', err);
             setError(err.response?.data?.message || 'Failed to delete wallet store');
@@ -205,7 +235,7 @@ const WalletStoreManagement = () => {
 
             setShowGenerateForm(false);
             setShowExportModal(true);
-            await loadStores();
+            await loadStores(storePage);
         } catch (err) {
             console.error('Failed to generate wallet cards:', err);
             setError(err.response?.data?.message || 'Failed to generate wallet cards');
@@ -225,7 +255,12 @@ const WalletStoreManagement = () => {
             let lastPage = 1;
 
             // Handle Laravel pagination or legacy structure
-            if (data.data && Array.isArray(data.data)) {
+            if (data.cards && data.cards.data) {
+                // New Paginated Structure: cards is a pagination object
+                cards = data.cards.data;
+                total = data.cards.total || data.total_cards || 0;
+                lastPage = data.cards.last_page || 1;
+            } else if (data.data && Array.isArray(data.data)) {
                 cards = data.data;
                 total = data.total || 0;
                 lastPage = data.last_page || 1;
@@ -266,6 +301,26 @@ const WalletStoreManagement = () => {
                 }, {});
 
                 setCardsByBatch(grouped);
+
+                // Merge with batches summary if available from API (to show all batches, not just current page's)
+                if (data.batches && Array.isArray(data.batches)) {
+                    const mergedBatches = { ...grouped };
+                    data.batches.forEach(batchSummary => {
+                        if (!mergedBatches[batchSummary.batch_id]) {
+                            mergedBatches[batchSummary.batch_id] = {
+                                cards: batchSummary.cards || [], // Might be empty if not loaded
+                                createdAt: batchSummary.created_at,
+                                count: batchSummary.cards_count, // Use count from summary
+                                isPartial: true // Flag to indicate cards need fetching
+                            };
+                        } else {
+                            // Update existing (current page) batch with correct total count
+                            mergedBatches[batchSummary.batch_id].count = batchSummary.cards_count;
+                        }
+                    });
+                    setCardsByBatch(mergedBatches);
+                }
+
                 setShowExportModal(true);
             } else {
                 if (page === 1) {
@@ -290,11 +345,7 @@ const WalletStoreManagement = () => {
         }
     };
 
-    const handleViewCards = async (store) => {
-        setSelectedStore(store);
-        // Reset to page 1
-        await fetchStoreCards(store.id, 1);
-    };
+
 
     const handlePageChange = (page) => {
         if (selectedStore) {
@@ -359,14 +410,36 @@ const WalletStoreManagement = () => {
 
     // Batch-specific exports
     const handleExportBatchPrintSheet = async (batchId) => {
-        const batch = cardsByBatch[batchId];
-        if (!batch || batch.cards.length === 0) return;
+        let batch = cardsByBatch[batchId];
+        if (!batch) return;
+
         setActionLoading(true);
-        setExportProgress({ current: 0, total: batch.cards.length, percentage: 0, status: 'creating-sheet' });
         try {
+            // Check if we need to fetch the full batch
+            let cardsToExport = batch.cards;
+            if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
+                // Fetch full batch
+                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                if (response.cards) {
+                    cardsToExport = response.cards;
+                    // Update local state to cache it? Optional, but good for UX
+                    setCardsByBatch(prev => ({
+                        ...prev,
+                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                    }));
+                }
+            }
+
+            if (cardsToExport.length === 0) {
+                setActionLoading(false);
+                return;
+            }
+
+            setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-sheet' });
+
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(batch.cards, setExportProgress, null, widthMm, heightMm, accountIdType);
+            await downloadWalletPrintSheetPDF(cardsToExport, setExportProgress, null, widthMm, heightMm, accountIdType);
         } catch (err) {
             console.error('Batch print sheet export failed:', err);
             setError('Failed to export batch print sheet');
@@ -377,14 +450,34 @@ const WalletStoreManagement = () => {
     };
 
     const handleExportBatchCardBackPrintSheet = async (batchId) => {
-        const batch = cardsByBatch[batchId];
-        if (!batch || batch.cards.length === 0) return;
+        let batch = cardsByBatch[batchId];
+        if (!batch) return;
+
         setActionLoading(true);
-        setExportProgress({ current: 0, total: batch.cards.length, percentage: 0, status: 'creating-cardback-sheet' });
         try {
+            // Check if we need to fetch the full batch
+            let cardsToExport = batch.cards;
+            if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
+                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                if (response.cards) {
+                    cardsToExport = response.cards;
+                    // Update local state
+                    setCardsByBatch(prev => ({
+                        ...prev,
+                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                    }));
+                }
+            }
+
+            if (cardsToExport.length === 0) {
+                setActionLoading(false);
+                return;
+            }
+
+            setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-cardback-sheet' });
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
-            await downloadWalletCardBackPrintSheetPDF(batch.cards, setExportProgress, widthMm, heightMm);
+            await downloadWalletCardBackPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm);
         } catch (err) {
             console.error('Batch card back print sheet export failed:', err);
             setError('Failed to export batch card back print sheet');
@@ -439,6 +532,41 @@ const WalletStoreManagement = () => {
         }
     };
 
+    const viewBatchAccounts = async (batchId, page = 1, search = batchSearchQuery) => {
+        setBatchAccountsPage(page);
+        setActionLoading(true);
+        try {
+            const storeId = currentViewStoreId || selectedStore?.id;
+            if (!storeId) {
+                console.error("Store ID missing for batch fetch");
+                setError("Cannot fetch batch: Store ID missing");
+                return;
+            }
+
+            // Fetch specific page from server
+            const data = await getWalletBatchCards(storeId, batchId, page, BATCH_ACCOUNTS_PER_PAGE, search);
+
+            setCardsByBatch(prev => ({
+                ...prev,
+                [batchId]: {
+                    ...prev[batchId],
+                    cards: data.cards.data,
+                    total: data.cards.total,
+                    currentPage: data.cards.current_page,
+                    lastPage: data.cards.last_page,
+                    isPartial: false
+                }
+            }));
+
+            setSelectedBatchId(batchId);
+        } catch (err) {
+            console.error('Failed to load batch cards:', err);
+            setError('Failed to load batch accounts');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const openEditForm = (store) => {
         setEditingStore(store);
         setFormData({
@@ -453,6 +581,12 @@ const WalletStoreManagement = () => {
         setSelectedStore(store);
         setShowGenerateForm(true);
         setGenerateData({ count: 10, email_type: 'icloud', email_prefix: '' });
+    };
+
+    const handleViewCards = async (store) => {
+        setSelectedStore(store);
+        setCurrentViewStoreId(store.id);
+        await fetchStoreCards(store.id, 1);
     };
 
     // Sort stores
@@ -475,23 +609,11 @@ const WalletStoreManagement = () => {
         <div className="store-management wallet-store-management">
             {/* View Batch Accounts Modal */}
             {selectedBatchId && cardsByBatch[selectedBatchId] && (() => {
-                // Filter cards based on search
-                const filteredCards = cardsByBatch[selectedBatchId].cards.filter(card => {
-                    if (!batchSearchQuery) return true;
-                    const query = batchSearchQuery.toLowerCase();
-                    return (
-                        card.email?.toLowerCase().includes(query) ||
-                        card.first_name?.toLowerCase().includes(query) ||
-                        card.last_name?.toLowerCase().includes(query) ||
-                        card.phone?.toLowerCase().includes(query) ||
-                        card.serial_number?.toLowerCase().includes(query)
-                    );
-                });
-
-                // Paginate filtered results
-                const totalPages = Math.ceil(filteredCards.length / BATCH_ACCOUNTS_PER_PAGE);
-                const startIndex = (batchAccountsPage - 1) * BATCH_ACCOUNTS_PER_PAGE;
-                const paginatedCards = filteredCards.slice(startIndex, startIndex + BATCH_ACCOUNTS_PER_PAGE);
+                // Server-side pagination uses data directly from state
+                const currentBatch = cardsByBatch[selectedBatchId];
+                const paginatedCards = currentBatch.cards || [];
+                const totalBatchPages = currentBatch.lastPage || 1;
+                const totalBatchItems = currentBatch.total || 0;
 
                 return (
                     <div className="modal-overlay" style={{ zIndex: 1100 }}>
@@ -509,7 +631,7 @@ const WalletStoreManagement = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                                 <h3>
                                     <List size={20} style={{ marginRight: 'var(--spacing-sm)', verticalAlign: 'middle' }} />
-                                    Batch Accounts ({cardsByBatch[selectedBatchId].cards.length} cards)
+                                    Batch Accounts
                                 </h3>
                                 <button
                                     onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); setBatchAccountsPage(1); }}
@@ -519,6 +641,8 @@ const WalletStoreManagement = () => {
                                     <X size={20} />
                                 </button>
                             </div>
+
+
 
                             {/* Search Box - Matching Email Search styling */}
                             <div style={{
@@ -540,7 +664,12 @@ const WalletStoreManagement = () => {
                                         type="text"
                                         placeholder="Search by email, name, phone, or serial..."
                                         value={batchSearchQuery}
-                                        onChange={(e) => { setBatchSearchQuery(e.target.value); setBatchAccountsPage(1); }}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setBatchSearchQuery(val);
+                                            // Debounce could be added here, but for now calling directly
+                                            viewBatchAccounts(selectedBatchId, 1, val);
+                                        }}
                                         style={{
                                             width: '100%',
                                             padding: 'var(--spacing-md) var(--spacing-md)',
@@ -560,8 +689,26 @@ const WalletStoreManagement = () => {
                                 flex: 1,
                                 overflow: 'auto',
                                 border: '1px solid var(--border-color)',
-                                borderRadius: 'var(--border-radius-md)'
+                                borderRadius: 'var(--border-radius-md)',
+                                position: 'relative'
                             }}>
+                                {actionLoading && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        background: 'rgba(var(--color-bg-primary-rgb, 255, 255, 255), 0.7)',
+                                        backdropFilter: 'blur(2px)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        zIndex: 10
+                                    }}>
+                                        <div className="spinner"></div>
+                                    </div>
+                                )}
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
                                         <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
@@ -577,7 +724,7 @@ const WalletStoreManagement = () => {
                                             <tr key={card.id || index} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.email}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.first_name} {card.last_name}</td>
-                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone || '—'}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone_number ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone_number || '—'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serial_number || 'N/A'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
                                                     {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}
@@ -591,9 +738,9 @@ const WalletStoreManagement = () => {
                             {/* Pagination */}
                             <Pagination
                                 currentPage={batchAccountsPage}
-                                totalPages={totalPages}
-                                onPageChange={setBatchAccountsPage}
-                                totalItems={filteredCards.length}
+                                totalPages={totalBatchPages}
+                                onPageChange={(page) => viewBatchAccounts(selectedBatchId, page)}
+                                totalItems={totalBatchItems}
                                 itemsPerPage={BATCH_ACCOUNTS_PER_PAGE}
                             />
 
@@ -1194,7 +1341,7 @@ const WalletStoreManagement = () => {
                                                                     {batchId === 'legacy' ? 'Legacy Cards' : `Batch ${Object.keys(cardsByBatch).length - index}`}
                                                                 </span>
                                                                 <span style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                                                                    ({batch.cards.length} cards)
+                                                                    ({batch.count || batch.cards.length} cards)
                                                                 </span>
                                                             </div>
                                                             <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
@@ -1221,12 +1368,10 @@ const WalletStoreManagement = () => {
                                                                 Card Backs
                                                             </button>
                                                             <button
-                                                                onClick={() => {
-                                                                    setSelectedBatchId(batchId);
-                                                                    setShowExportModal(false);
-                                                                }}
+                                                                onClick={() => viewBatchAccounts(batchId)}
                                                                 className="btn btn-primary-enhanced"
                                                                 style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                                disabled={actionLoading}
                                                             >
                                                                 <List size={14} />
                                                                 View Accounts
@@ -1311,6 +1456,19 @@ const WalletStoreManagement = () => {
                     </div>
                 )
             }
+
+            {/* Store List Pagination */}
+            {totalStorePages > 1 && (
+                <div style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center' }}>
+                    <Pagination
+                        currentPage={storePage}
+                        totalPages={totalStorePages}
+                        onPageChange={setStorePage}
+                        totalItems={totalStores}
+                        itemsPerPage={STORES_PER_PAGE}
+                    />
+                </div>
+            )}
         </div >
     );
 };

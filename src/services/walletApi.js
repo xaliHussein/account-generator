@@ -7,8 +7,10 @@ import api from './api';
 /**
  * Get all wallet stores
  */
-export const getWalletStores = async () => {
-    const response = await api.get('/api/wallet-stores');
+export const getWalletStores = async (page = 1, perPage = 15) => {
+    const response = await api.get('/api/wallet-stores', {
+        params: { page, per_page: perPage }
+    });
     return response.data;
 };
 
@@ -76,6 +78,16 @@ export const deleteWalletCard = async (cardId) => {
  */
 export const deleteWalletBatch = async (storeId, batchId) => {
     const response = await api.delete(`/api/wallet-stores/${storeId}/batches/${batchId}`);
+    return response.data;
+};
+
+/**
+ * Get all wallet cards in a batch (for export)
+ */
+export const getWalletBatchCards = async (storeId, batchId, page = 1, perPage = 20, search = '') => {
+    const response = await api.get(`/api/wallet-stores/${storeId}/batches/${batchId}/cards`, {
+        params: { page, per_page: perPage, search }
+    });
     return response.data;
 };
 

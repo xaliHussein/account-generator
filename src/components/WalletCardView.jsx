@@ -116,6 +116,16 @@ const WalletCardView = () => {
         });
     };
 
+    // Show warning before Save
+    const confirmSave = () => {
+        if (card.is_locked) return;
+        setWarningModal({
+            show: true,
+            type: 'save',
+            message: 'هل أنت متأكد من أنك تريد الحفظ؟ سيتم حفظ معلومات البطاقة ولن تتمكن من إجراء تغييرات.'
+        });
+    };
+
     // Execute action after warning confirmation
     const executeWarningAction = async () => {
         const type = warningModal.type;
@@ -128,6 +138,8 @@ const WalletCardView = () => {
             setManualMode(false);
         } else if (type === 'manual') {
             startManualMode();
+        } else if (type === 'save') {
+            await handleSave();
         }
     };
 
@@ -191,9 +203,7 @@ const WalletCardView = () => {
 
     const handleSave = async () => {
         if (card.is_locked) return;
-        if (!confirm('هل أنت متأكد من الحفظ؟ سيتم قفل البطاقة ولن تتمكن من إجراء تغييرات.')) {
-            return;
-        }
+        // logic moved to confirmSave -> executeWarningAction -> handleSave
         setActionLoading(true);
         setError(null);
         try {
@@ -310,7 +320,7 @@ const WalletCardView = () => {
                         <div className="wallet-view-icon">
                             <Phone size={32} />
                         </div>
-                        <h1>محفظة آبل</h1>
+                        <h1>{card.wallet_type === 'google' ? 'محفظة Google' : 'محفظة Apple'}</h1>
                         <p>أدخل رقم الهاتف للمتابعة</p>
                     </div>
 
@@ -358,7 +368,7 @@ const WalletCardView = () => {
                         </div>
                     )}
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>
-                        {card.wallet_type === 'google' ? 'محفظة جوجل' : 'محفظة أبل'}
+                        {card.wallet_type === 'google' ? 'محفظة Google' : 'محفظة Apple'}
                     </div>
                     <p className="serial-number">الرقم التسلسلي: {card.serial_number}</p>
                 </div>
@@ -571,18 +581,18 @@ const WalletCardView = () => {
                 <div className="wallet-actions-footer">
                     {!card.is_locked && !editMode && !manualMode && (
                         <button
-                            onClick={handleSave}
+                            onClick={confirmSave}
                             className="btn btn-wallet-save"
                             disabled={actionLoading}
                         >
                             <Save size={16} />
-                            حفظ وقفل
+                            <h5>حفظ</h5>
                         </button>
                     )}
 
                     <button onClick={handleSaveAsImage} className="btn btn-wallet-secondary">
                         <Image size={16} />
-                        حفظ كصورة
+                        <h5> حفظ كصورة</h5>
                     </button>
 
                     <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="btn btn-wallet-secondary">
