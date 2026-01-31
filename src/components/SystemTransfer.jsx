@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getSystemCards, getStores, transferSystemCards } from '../services/api';
 import { getWalletSystemCards, transferWalletCards, getWalletStores } from '../services/walletApi';
 import Card from './ui/Card';
+import Pagination from './ui/Pagination';
 import {
     ArrowRightLeft, Store, Check, CheckSquare, Square, AlertCircle,
     RefreshCw, X, Package, Search, CreditCard, Wallet
@@ -35,9 +36,16 @@ const SystemTransfer = () => {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const ITEMS_PER_PAGE = 20;
+
     // Load cards and stores on mount and when card type changes
     useEffect(() => {
-        loadData();
+        setCurrentPage(1);
+        loadData(1);
         // Clear selection when switching card types
         setSelectedCardIds(new Set());
         setTargetStoreId('');
@@ -47,26 +55,80 @@ const SystemTransfer = () => {
         localStorage.setItem('transferCardType', cardType);
     }, [cardType]);
 
-    const loadData = async () => {
+    const loadData = async (page = currentPage) => {
         setLoading(true);
         setError(null);
         try {
             if (cardType === 'regular') {
                 const [cardsResponse, storesData] = await Promise.all([
-                    getSystemCards(),
-                    getStores()
+                    getSystemCards(page, ITEMS_PER_PAGE),
+                    getStores(1, 1000) // Fetch all stores for dropdown
                 ]);
-                setCards(cardsResponse.cards || []);
-                // Filter out the System store from the destination options (case-insensitive)
-                setStores(storesData.filter(store => store.name.toLowerCase() !== 'system'));
+
+                // Handle paginated response for cards
+                if (cardsResponse.cards && cardsResponse.cards.data) {
+                    setCards(cardsResponse.cards.data);
+                    setTotalItems(cardsResponse.cards.total || 0);
+                    setTotalPages(cardsResponse.cards.last_page || 1);
+                } else {
+                    // Fallback
+                    setCards(cardsResponse.cards || []);
+                    setTotalItems(cardsResponse.cards?.length || 0);
+                    setTotalPages(1);
+                }
+
+                setCurrentPage(page);
+
+                // Handle stores response (Regular stores are also paginated in StoreController)
+                // We need to fetch ALL stores for the dropdown.
+                // StoreController::index takes per_page.
+                // But getStores() in api.js doesn't accept params?
+                // Checking api.js: export const getStores = async () => {... api.get('/api/stores') ...}
+                // It doesn't pass params. StoreController uses default 15.
+                // This means the dropdown for regular is ALSO broken if > 15 stores.
+                // Fixing getStores implies changing api.js again.
+                // For now, let's assume getStores returns what it does, but we should handle if it is paginated data.
+
+                // Wait, I didn't update api.js getStores to accept params.
+                // I should. But focusing on Cards first.
+
+                // If getStores returns paginated object:
+                const storesList = storesData.data || storesData;
+                if (Array.isArray(storesList)) {
+                    setStores(storesList.filter(store => store.name.toLowerCase() !== 'system'));
+                } else {
+                    setStores([]);
+                }
             } else {
                 const [cardsResponse, storesData] = await Promise.all([
-                    getWalletSystemCards(),
-                    getWalletStores()
+                    getWalletSystemCards(page, ITEMS_PER_PAGE),
+                    getWalletStores(1, 1000) // Get all stores for dropdown
                 ]);
-                setCards(cardsResponse.cards || []);
+
+                // Handle paginated response
+                if (cardsResponse.cards && cardsResponse.cards.data) {
+                    setCards(cardsResponse.cards.data);
+                    setTotalItems(cardsResponse.cards.total || 0);
+                    setTotalPages(cardsResponse.cards.last_page || 1);
+                } else {
+                    // Fallback for non-paginated or empty
+                    setCards(cardsResponse.cards || []);
+                    setTotalItems(cardsResponse.cards?.length || 0);
+                    setTotalPages(1);
+                }
+
+                setCurrentPage(page);
+
+                // Handle stores response (it is paginated)
+                const storesList = storesData.data || storesData;
+
                 // Filter out the System store from the destination options (case-insensitive)
-                setStores(storesData.filter(store => store.name.toLowerCase() !== 'system'));
+                if (Array.isArray(storesList)) {
+                    setStores(storesList.filter(store => store.name.toLowerCase() !== 'system'));
+                } else {
+                    console.error('Unexpected stores data format:', storesData);
+                    setStores([]);
+                }
             }
         } catch (err) {
             console.error('Failed to load data:', err);
@@ -74,6 +136,11 @@ const SystemTransfer = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+        loadData(newPage);
     };
 
     // Filter cards based on search
@@ -231,7 +298,7 @@ const SystemTransfer = () => {
                     </div>
                     <button
                         className="btn btn-ghost"
-                        onClick={loadData}
+                        onClick={() => loadData(currentPage)}
                         disabled={loading}
                     >
                         <RefreshCw size={18} className={loading ? 'spinning' : ''} />
@@ -317,13 +384,8 @@ const SystemTransfer = () => {
             <Card hover={false}>
                 <Card.Body style={{ padding: 0 }}>
                     {filteredCards.length === 0 ? (
-                        <div className="transfer-empty" style={
-                            cardType === 'wallet' ? {
-                                background: 'linear-gradient(135deg, rgba(10, 22, 40, 0.3) 0%, rgba(19, 43, 80, 0.3) 100%)',
-                                borderColor: 'rgba(0, 200, 255, 0.2)'
-                            } : {}
-                        }>
-                            {cardType === 'wallet' ? <Wallet size={48} style={{ color: '#00c8ff' }} /> : <Package size={48} />}
+                        <div className="transfer-empty">
+                            {cardType === 'wallet' ? <Wallet size={48} className="text-accent-blue" /> : <Package size={48} />}
                             <h3>No {cardType === 'wallet' ? 'Wallet ' : ''}System Cards Found</h3>
                             <p>Generate some {cardType === 'wallet' ? 'wallet ' : ''}cards from the {cardType === 'wallet' ? 'Wallet Cards' : 'Generator'} page first.</p>
                         </div>
@@ -425,49 +487,68 @@ const SystemTransfer = () => {
                 </Card.Body>
             </Card>
 
+
+
+            {/* Pagination Controls */}
+            {
+                totalPages > 1 && (
+                    <div style={{ marginTop: 'var(--spacing-md)' }}>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            totalItems={totalItems}
+                            itemsPerPage={ITEMS_PER_PAGE}
+                        />
+                    </div>
+                )
+            }
+
             {/* Confirmation Modal */}
-            {showConfirmModal && (
-                <div className="modal-overlay">
-                    <div className="modal transfer-confirm-modal">
-                        <div className="modal-header">
-                            <h3>Confirm Transfer</h3>
-                            <button className="modal-close-btn" onClick={() => setShowConfirmModal(false)}>
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="modal-body">
-                            <p>
-                                Are you sure you want to transfer <strong>{selectedCardIds.size} {cardType === 'wallet' ? 'wallet ' : ''}cards</strong> to{' '}
-                                <strong>{selectedStore?.name}</strong>?
-                            </p>
-                            <p style={{
-                                fontSize: 'var(--font-size-sm)',
-                                color: 'var(--color-text-secondary)',
-                                marginTop: 'var(--spacing-sm)'
-                            }}>
-                                This action will move the cards from the System {cardType === 'wallet' ? 'wallet ' : ''}store to the selected store.
-                                {cardType === 'regular' && ' The cards will no longer appear in the Generator page.'}
-                            </p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className="btn btn-ghost"
-                                onClick={() => setShowConfirmModal(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn btn-primary-enhanced"
-                                onClick={handleTransfer}
-                                disabled={transferring}
-                            >
-                                {transferring ? 'Transferring...' : 'Confirm Transfer'}
-                            </button>
+            {
+                showConfirmModal && (
+                    <div className="modal-overlay">
+                        <div className="modal transfer-confirm-modal">
+                            <div className="modal-header">
+                                <h3>Confirm Transfer</h3>
+                                <button className="modal-close-btn" onClick={() => setShowConfirmModal(false)}>
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="modal-body">
+                                <p>
+                                    Are you sure you want to transfer <strong>{selectedCardIds.size} {cardType === 'wallet' ? 'wallet ' : ''}cards</strong> to{' '}
+                                    <strong>{selectedStore?.name}</strong>?
+                                </p>
+                                <p style={{
+                                    fontSize: 'var(--font-size-sm)',
+                                    color: 'var(--color-text-secondary)',
+                                    marginTop: 'var(--spacing-sm)'
+                                }}>
+                                    This action will move the cards from the System {cardType === 'wallet' ? 'wallet ' : ''}store to the selected store.
+                                    {cardType === 'regular' && ' The cards will no longer appear in the Generator page.'}
+                                </p>
+                            </div>
+                            <div className="modal-footer">
+                                <button
+                                    className="btn btn-ghost"
+                                    onClick={() => setShowConfirmModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-primary-enhanced"
+                                    onClick={handleTransfer}
+                                    disabled={transferring}
+                                >
+                                    {transferring ? 'Transferring...' : 'Confirm Transfer'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

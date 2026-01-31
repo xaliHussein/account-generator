@@ -130,8 +130,8 @@ export const getWalletDashboardStores = async () => {
 /**
  * Get all stores
  */
-export const getStores = async () => {
-    const response = await api.get('/api/stores');
+export const getStores = async (page = 1, perPage = 15) => {
+    const response = await api.get('/api/stores', { params: { page, per_page: perPage } });
     return response.data;
 };
 
@@ -178,10 +178,22 @@ export const getStoreCards = async (storeId, page = 1) => {
 };
 
 /**
- * Get cards for a store with decrypted data (for export)
+ * Get cards for a store with decrypted data (for export) - paginated
  */
-export const getStoreCardsForExport = async (storeId) => {
-    const response = await api.get(`/api/stores/${storeId}/cards`, { params: { export: 'true' } });
+export const getStoreCardsForExport = async (storeId, page = 1, perPage = 50) => {
+    const response = await api.get(`/api/stores/${storeId}/cards`, {
+        params: { export: 'true', page, per_page: perPage }
+    });
+    return response.data;
+};
+
+/**
+ * Get cards for a specific batch with pagination and search
+ */
+export const getStoreBatchCards = async (storeId, batchId, page = 1, perPage = 20, search = '') => {
+    const response = await api.get(`/api/stores/${storeId}/batches/${batchId}/cards`, {
+        params: { page, per_page: perPage, search }
+    });
     return response.data;
 };
 
@@ -253,8 +265,8 @@ export const generateSystemCards = async (count, emailType = 'random', color = '
 /**
  * Get all system cards for the Generator page
  */
-export const getSystemCards = async () => {
-    const response = await api.get('/api/system/cards');
+export const getSystemCards = async (page = 1, perPage = 50) => {
+    const response = await api.get('/api/system/cards', { params: { page, per_page: perPage } });
     return response.data;
 };
 

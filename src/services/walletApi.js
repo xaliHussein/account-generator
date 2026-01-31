@@ -150,8 +150,10 @@ export const saveWalletCard = async (token) => {
 /**
  * Get wallet system cards (cards in "System" store for transfer)
  */
-export const getWalletSystemCards = async () => {
-    const response = await api.get('/api/wallet-system/cards');
+export const getWalletSystemCards = async (page = 1, perPage = 50) => {
+    const response = await api.get('/api/wallet-system/cards', {
+        params: { page, per_page: perPage }
+    });
     return response.data;
 };
 

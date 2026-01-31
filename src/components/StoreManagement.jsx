@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, deleteBatch } from '../services/api';
+import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, getStoreBatchCards, deleteBatch } from '../services/api';
 import { downloadAccountsZip } from '../services/zipExporter';
 import { downloadPrintSheetPDF, downloadAccountPDF, downloadCardBackPrintSheetPDF } from '../services/pdfGenerator';
 import AccountCard from './AccountCard';
 import CardBack from './CardBack';
 import Card from './ui/Card';
+import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
     Download, FileArchive, Printer, Upload, Eye, Settings, Check, List,
@@ -40,6 +41,14 @@ const StoreManagement = () => {
     const [selectedPreviewCard, setSelectedPreviewCard] = useState(null);
     const [confirmDeleteBatch, setConfirmDeleteBatch] = useState(null); // Batch ID to confirm deletion
     const [batchSearchQuery, setBatchSearchQuery] = useState('');
+    const [batchAccountsPage, setBatchAccountsPage] = useState(1);
+
+    // Server-side pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCards, setTotalCards] = useState(0);
+    const CARDS_PER_PAGE = 20;
+    const BATCH_ACCOUNTS_PER_PAGE = 20;
 
     // Create/Edit form data
     const [formData, setFormData] = useState({
@@ -380,20 +389,38 @@ const StoreManagement = () => {
         setShowGenerateForm(true);
     };
 
-    // View existing cards for a store (for export)
-    const handleViewCards = async (store) => {
+    // View existing cards for a store (for export) - with server-side pagination
+    const handleViewCards = async (store, page = 1) => {
         setActionLoading(true);
         setSelectedStore(store);
         try {
-            const response = await getStoreCardsForExport(store.id);
-            if (response.cards && response.cards.length > 0) {
-                setGeneratedCards(response.cards);
-                setSelectedPreviewCard(response.cards[0]);
-                setCardColor(response.cards[0].color || 'blue');
+            const response = await getStoreCardsForExport(store.id, page, CARDS_PER_PAGE);
 
-                // Group cards by batchId
-                const grouped = response.cards.reduce((acc, card) => {
-                    const batchKey = card.batchId || 'legacy'; // Legacy cards without batchId
+            let cards = [];
+            let total = 0;
+            let lastPage = 1;
+
+            // Handle Laravel pagination structure
+            if (response.cards && response.cards.data) {
+                cards = response.cards.data;
+                total = response.cards.total || response.total_cards || 0;
+                lastPage = response.cards.last_page || 1;
+            } else if (response.cards && Array.isArray(response.cards)) {
+                cards = response.cards;
+                total = cards.length;
+                lastPage = 1;
+            }
+
+            if (cards.length > 0) {
+                setGeneratedCards(cards);
+                if (page === 1) {
+                    setSelectedPreviewCard(cards[0]);
+                    setCardColor(cards[0].color || 'blue');
+                }
+
+                // Group current page cards by batchId
+                const grouped = cards.reduce((acc, card) => {
+                    const batchKey = card.batchId || 'legacy';
                     if (!acc[batchKey]) {
                         acc[batchKey] = {
                             cards: [],
@@ -404,15 +431,83 @@ const StoreManagement = () => {
                     return acc;
                 }, {});
 
-                setCardsByBatch(grouped);
+                // Merge with batches summary if available
+                if (response.batches && Array.isArray(response.batches)) {
+                    const mergedBatches = { ...grouped };
+                    response.batches.forEach(batchSummary => {
+                        if (!mergedBatches[batchSummary.batchId]) {
+                            mergedBatches[batchSummary.batchId] = {
+                                cards: [],
+                                createdAt: batchSummary.createdAt,
+                                count: batchSummary.cards_count,
+                                isPartial: true
+                            };
+                        } else {
+                            mergedBatches[batchSummary.batchId].count = batchSummary.cards_count;
+                        }
+                    });
+                    setCardsByBatch(mergedBatches);
+                } else {
+                    setCardsByBatch(grouped);
+                }
 
                 setShowExportModal(true);
             } else {
-                setError('No cards found for this store. Generate some cards first.');
+                if (page === 1) {
+                    setError('No cards found for this store. Generate some cards first.');
+                    setGeneratedCards([]);
+                    setCardsByBatch({});
+                }
             }
+
+            setTotalCards(total);
+            setTotalPages(lastPage);
+            setCurrentPage(page);
+
         } catch (err) {
             console.error('Failed to load cards:', err);
             setError('Failed to load cards for export');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Page change handler for main cards pagination
+    const handlePageChange = (page) => {
+        if (selectedStore) {
+            handleViewCards(selectedStore, page);
+        }
+    };
+
+    // View batch accounts with server-side pagination and search
+    const viewBatchAccounts = async (batchId, page = 1, search = batchSearchQuery) => {
+        setBatchAccountsPage(page);
+        setActionLoading(true);
+        try {
+            const storeId = selectedStore?.id;
+            if (!storeId) {
+                setError('Cannot fetch batch: Store ID missing');
+                return;
+            }
+
+            const response = await getStoreBatchCards(storeId, batchId, page, BATCH_ACCOUNTS_PER_PAGE, search);
+
+            setCardsByBatch(prev => ({
+                ...prev,
+                [batchId]: {
+                    ...prev[batchId],
+                    cards: response.cards.data,
+                    total: response.cards.total,
+                    currentPage: response.cards.current_page,
+                    lastPage: response.cards.last_page,
+                    isPartial: false
+                }
+            }));
+
+            setSelectedBatchId(batchId);
+        } catch (err) {
+            console.error('Failed to load batch cards:', err);
+            setError('Failed to load batch accounts');
         } finally {
             setActionLoading(false);
         }
@@ -474,110 +569,147 @@ const StoreManagement = () => {
             )}
 
             {/* View Batch Accounts Modal */}
-            {selectedBatchId && cardsByBatch[selectedBatchId] && (
-                <div className="modal-overlay" style={{ zIndex: 1100 }}>
-                    <div className="modal-content" style={{
-                        maxWidth: '800px',
-                        maxHeight: '80vh',
-                        background: 'var(--color-bg-primary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--border-radius-lg)',
-                        padding: 'var(--spacing-xl)',
-                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        flexDirection: 'column'
-                    }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
-                            <h3>
-                                <List size={20} style={{ marginRight: 'var(--spacing-sm)', verticalAlign: 'middle' }} />
-                                Batch Accounts ({cardsByBatch[selectedBatchId].cards.length} cards)
-                            </h3>
-                            <button
-                                onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); }}
-                                className="btn btn-ghost"
-                                style={{ padding: 'var(--spacing-xs)' }}
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div style={{
-                            marginBottom: 'var(--spacing-md)',
-                            position: 'relative'
-                        }}>
-                            <Search size={16} style={{
-                                position: 'absolute',
-                                left: 'var(--spacing-sm)',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: 'var(--color-text-secondary)'
-                            }} />
-                            <input
-                                type="text"
-                                placeholder="Search by email, name, phone, or serial..."
-                                value={batchSearchQuery}
-                                onChange={(e) => setBatchSearchQuery(e.target.value)}
-                                className="form-input"
-                                style={{
-                                    width: '100%',
-                                    paddingLeft: 'calc(var(--spacing-sm) + 24px)',
-                                    background: 'var(--color-bg-secondary)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--border-radius-md)'
-                                }}
-                            />
-                        </div>
-                        <div style={{
-                            flex: 1,
-                            overflow: 'auto',
+            {selectedBatchId && cardsByBatch[selectedBatchId] && (() => {
+                const currentBatch = cardsByBatch[selectedBatchId];
+                const paginatedCards = currentBatch.cards || [];
+                const totalBatchPages = currentBatch.lastPage || 1;
+                const totalBatchItems = currentBatch.total || currentBatch.count || paginatedCards.length;
+
+                return (
+                    <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                        <div className="modal-content" style={{
+                            maxWidth: '900px',
+                            maxHeight: '85vh',
+                            background: 'var(--color-bg-primary)',
                             border: '1px solid var(--border-color)',
-                            borderRadius: 'var(--border-radius-md)'
+                            borderRadius: 'var(--border-radius-lg)',
+                            padding: 'var(--spacing-xl)',
+                            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                            display: 'flex',
+                            flexDirection: 'column'
                         }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Name</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Created</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {cardsByBatch[selectedBatchId].cards
-                                        .filter(card => {
-                                            if (!batchSearchQuery) return true;
-                                            const query = batchSearchQuery.toLowerCase();
-                                            return (
-                                                card.email?.toLowerCase().includes(query) ||
-                                                card.firstName?.toLowerCase().includes(query) ||
-                                                card.lastName?.toLowerCase().includes(query) ||
-                                                card.phone?.toLowerCase().includes(query) ||
-                                                card.accountId?.toLowerCase().includes(query) ||
-                                                card.sn?.toLowerCase().includes(query)
-                                            );
-                                        })
-                                        .map((card, index) => (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                                <h3>
+                                    <List size={20} style={{ marginRight: 'var(--spacing-sm)', verticalAlign: 'middle' }} />
+                                    Batch Accounts
+                                </h3>
+                                <button
+                                    onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); setBatchAccountsPage(1); }}
+                                    className="btn btn-ghost"
+                                    style={{ padding: 'var(--spacing-xs)' }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Search Box */}
+                            <div style={{
+                                padding: 'var(--spacing-md)',
+                                background: 'var(--color-bg-secondary)',
+                                borderRadius: 'var(--border-radius-lg)',
+                                border: '1px solid var(--border-color)',
+                                marginBottom: 'var(--spacing-md)'
+                            }}>
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={18} style={{
+                                        position: 'absolute',
+                                        left: '12px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        color: 'var(--color-text-tertiary)'
+                                    }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by email, name, phone, or serial..."
+                                        value={batchSearchQuery}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setBatchSearchQuery(val);
+                                            viewBatchAccounts(selectedBatchId, 1, val);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: 'var(--spacing-md) var(--spacing-md)',
+                                            paddingLeft: '40px',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: 'var(--color-bg-primary)',
+                                            fontSize: 'var(--font-size-md)',
+                                            fontFamily: 'monospace'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Table */}
+                            <div style={{
+                                flex: 1,
+                                overflow: 'auto',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: 'var(--border-radius-md)',
+                                position: 'relative'
+                            }}>
+                                {actionLoading && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        background: 'rgba(var(--color-bg-primary-rgb, 255, 255, 255), 0.7)',
+                                        backdropFilter: 'blur(2px)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        zIndex: 10
+                                    }}>
+                                        <div className="spinner"></div>
+                                    </div>
+                                )}
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
+                                            <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
+                                            <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Name</th>
+                                            <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
+                                            <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
+                                            <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginatedCards.map((card, index) => (
                                             <tr key={card.id || index} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.email}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.firstName} {card.lastName}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone || '—'}</td>
-                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.accountId || card.sn || 'N/A'}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber || card.accountId || 'N/A'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
                                                     {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}
                                                 </td>
                                             </tr>
                                         ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div style={{ marginTop: 'var(--spacing-lg)', textAlign: 'right' }}>
-                            <button onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); }} className="btn btn-primary-enhanced">
-                                Close
-                            </button>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination */}
+                            <Pagination
+                                currentPage={batchAccountsPage}
+                                totalPages={totalBatchPages}
+                                onPageChange={(page) => viewBatchAccounts(selectedBatchId, page)}
+                                totalItems={totalBatchItems}
+                                itemsPerPage={BATCH_ACCOUNTS_PER_PAGE}
+                            />
+
+                            <div style={{ marginTop: 'var(--spacing-md)', textAlign: 'right' }}>
+                                <button onClick={() => { setSelectedBatchId(null); setBatchSearchQuery(''); setBatchAccountsPage(1); }} className="btn btn-primary-enhanced">
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             <div className="section-header">
                 <h2>Store Management</h2>
@@ -1229,7 +1361,7 @@ const StoreManagement = () => {
                                                                 {batchId === 'legacy' ? 'Legacy Cards' : `Batch ${Object.keys(cardsByBatch).length - index}`}
                                                             </span>
                                                             <span style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                                                                ({batch.cards.length} cards)
+                                                                ({batch.count || batch.cards_count || batch.cards?.length || 0} cards)
                                                             </span>
                                                         </div>
                                                         <span style={{ color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
@@ -1257,8 +1389,7 @@ const StoreManagement = () => {
                                                         </button>
                                                         <button
                                                             onClick={() => {
-                                                                setSelectedBatchId(batchId);
-                                                                setShowExportModal(false);
+                                                                viewBatchAccounts(batchId, 1, '');
                                                             }}
                                                             className="btn btn-primary-enhanced"
                                                             style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
