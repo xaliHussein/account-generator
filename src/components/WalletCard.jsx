@@ -8,7 +8,7 @@ import QRCode from 'react-qr-code';
  */
 const WalletCard = ({ card, showQR = true, walletType = 'apple' }) => {
     // Use frontend URL for QR code so it opens the wallet card view page
-    const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
+    const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
     const qrUrl = `${FRONTEND_URL}/#/wallet/${card.access_token}`;
 
     // Wallet branding based on type
