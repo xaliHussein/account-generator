@@ -22,9 +22,9 @@ export const useAccounts = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getSystemCards();
-      const cards = response.cards || [];
-      
+      const response = await getSystemCards(1, 20); // Fetch up to 20 cards for Generator view
+      const cards = response.cards?.data || response.cards || [];
+
       // Debug: Check if accessToken is present in loaded cards
       if (cards.length > 0) {
         console.log('loadAccounts: Sample card data:', {
@@ -34,7 +34,7 @@ export const useAccounts = () => {
           keys: Object.keys(cards[0])
         });
       }
-      
+
       setAccounts(cards);
     } catch (err) {
       console.error('Failed to load system cards:', err);
@@ -59,10 +59,10 @@ export const useAccounts = () => {
   const generateAccountsApi = useCallback(async (count, emailType = 'random', color = 'blue') => {
     const response = await generateSystemCards(count, emailType, color);
     const newCards = response.cards || [];
-    
+
     // Update local state with new cards at the beginning
     setAccounts((prev) => [...newCards, ...prev]);
-    
+
     return newCards;
   }, []);
 
@@ -167,10 +167,10 @@ export const useAccounts = () => {
   const successRate =
     accounts.length > 0
       ? Math.round(
-          (accounts.filter((acc) => acc.status === 'active').length /
-            accounts.length) *
-            100
-        )
+        (accounts.filter((acc) => acc.status === 'active').length /
+          accounts.length) *
+        100
+      )
       : 100;
 
   /**

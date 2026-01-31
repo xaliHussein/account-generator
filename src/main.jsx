@@ -9,10 +9,12 @@ import StoreManagement from './components/StoreManagement.jsx'
 import SystemTransfer from './components/SystemTransfer.jsx'
 import WalletStoreManagement from './components/WalletStoreManagement.jsx'
 import WalletCardView from './components/WalletCardView.jsx'
+import NotFound from './components/NotFound.jsx'
 import './index.css'
 
 /**
  * Main App Wrapper with Navigation
+ * Rendered under /sys-admin/*
  */
 const MainApp = () => {
     const navigate = useNavigate();
@@ -60,31 +62,31 @@ const MainApp = () => {
                     <div className="nav-links">
                         <button
                             className={`nav-link ${currentView === 'dashboard' ? 'active' : ''}`}
-                            onClick={() => navigate('/dashboard')}
+                            onClick={() => navigate('/sys-admin/dashboard')}
                         >
                             Dashboard
                         </button>
                         <button
                             className={`nav-link ${currentView === 'stores' ? 'active' : ''}`}
-                            onClick={() => navigate('/stores')}
+                            onClick={() => navigate('/sys-admin/stores')}
                         >
                             Stores
                         </button>
                         <button
                             className={`nav-link ${currentView === 'wallet' ? 'active' : ''}`}
-                            onClick={() => navigate('/wallet-stores')}
+                            onClick={() => navigate('/sys-admin/wallet-stores')}
                         >
                             Wallet Cards
                         </button>
                         <button
                             className={`nav-link ${currentView === 'transfer' ? 'active' : ''}`}
-                            onClick={() => navigate('/transfer')}
+                            onClick={() => navigate('/sys-admin/transfer')}
                         >
                             Transfer
                         </button>
                         <button
                             className={`nav-link ${currentView === 'generator' ? 'active' : ''}`}
-                            onClick={() => navigate('/generator')}
+                            onClick={() => navigate('/sys-admin/generator')}
                         >
                             Generator
                         </button>
@@ -98,12 +100,12 @@ const MainApp = () => {
             {/* Main Content */}
             <main className="main-wrapper">
                 <Routes>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/stores" element={<StoreManagement />} />
-                    <Route path="/wallet-stores" element={<WalletStoreManagement />} />
-                    <Route path="/generator" element={<App />} />
-                    <Route path="/transfer" element={<SystemTransfer />} />
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="dashboard" element={<Dashboard />} />
+                    <Route path="stores" element={<StoreManagement />} />
+                    <Route path="wallet-stores" element={<WalletStoreManagement />} />
+                    <Route path="generator" element={<App />} />
+                    <Route path="transfer" element={<SystemTransfer />} />
+                    <Route path="*" element={<Navigate to="/sys-admin/dashboard" replace />} />
                 </Routes>
             </main>
         </div>
@@ -136,12 +138,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 <Route path="/view" element={<ViewAccountPage />} />
                 {/* Public route - wallet card view */}
                 <Route path="/wallet/:token" element={<WalletCardView />} />
-                {/* Default route - redirect to protected app */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                {/* Legacy obscured URL - redirect to dashboard */}
-                <Route path="/account-generation-313" element={<Navigate to="/dashboard" replace />} />
-                {/* Protected routes */}
-                <Route path="/*" element={<ProtectedApp />} />
+
+                {/* Secure /sys-admin path for the application */}
+                <Route path="/sys-admin/*" element={<ProtectedApp />} />
+
+                {/* Root users get 404 - No redirect to login */}
+                <Route path="/" element={<NotFound />} />
+
+                {/* All other unknown routes get 404 */}
+                <Route path="*" element={<NotFound />} />
             </Routes>
         </HashRouter>
     </React.StrictMode>,
