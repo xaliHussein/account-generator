@@ -131,24 +131,22 @@ const ProtectedApp = () => {
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-    <React.StrictMode>
-        <HashRouter>
-            <Routes>
-                {/* Public route - anyone can view QR scanned data (must be before catch-all) */}
-                <Route path="/view" element={<ViewAccountPage />} />
-                {/* Public route - wallet card view */}
-                <Route path="/wallet/:token" element={<WalletCardView />} />
+    <HashRouter>
+        <Routes>
+            {/* Public route - anyone can view QR scanned data (must be before catch-all) */}
+            <Route path="/view" element={<ViewAccountPage />} />
+            {/* Public route - wallet card view */}
+            <Route path="/wallet/:token" element={<WalletCardView />} />
 
-                {/* Secure /sys-admin path for the application */}
-                <Route path="/sys-admin/*" element={<ProtectedApp />} />
+            {/* Secure /sys-admin path for the application */}
+            <Route path="/sys-admin/*" element={<ProtectedApp />} />
 
-                {/* Root users get 404 - No redirect to login */}
-                <Route path="/" element={<NotFound />} />
+            {/* Root users get 404 - No redirect to login */}
+            <Route path="/" element={<NotFound />} />
 
-                {/* All other unknown routes get 404 */}
-                <Route path="*" element={<NotFound />} />
-            </Routes>
-        </HashRouter>
-    </React.StrictMode>,
+            {/* All other unknown routes get 404 */}
+            <Route path="*" element={<NotFound />} />
+        </Routes>
+    </HashRouter>,
 )
 

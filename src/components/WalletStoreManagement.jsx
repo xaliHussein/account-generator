@@ -28,6 +28,7 @@ const WalletStoreManagement = () => {
     const [totalStorePages, setTotalStorePages] = useState(1);
     const [totalStores, setTotalStores] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
+    const searchRef = React.useRef(true); // Track first render
     const STORES_PER_PAGE = 15;
 
     const [loading, setLoading] = useState(true);
@@ -117,6 +118,10 @@ const WalletStoreManagement = () => {
 
     // Debounce search
     useEffect(() => {
+        if (searchRef.current) {
+            searchRef.current = false;
+            return;
+        }
         const timer = setTimeout(() => {
             if (storePage !== 1) {
                 setStorePage(1);

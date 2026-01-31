@@ -10,6 +10,7 @@ import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircl
  */
 const Dashboard = () => {
     const navigate = useNavigate();
+    const isFirstSearch = React.useRef(true); // Track first render for search debounce
     const [cardType, setCardType] = useState(() => {
         const saved = localStorage.getItem('dashboardCardType');
         return saved || 'regular';
@@ -41,13 +42,14 @@ const Dashboard = () => {
         navigate(cardType === 'wallet' ? '/sys-admin/wallet-stores' : '/sys-admin/stores');
     };
 
-    useEffect(() => {
-        // Reset to page 1 when switching card types
-        setLoading(true); // Show loading immediately
+    const handleCardTypeChange = (type) => {
+        if (type === cardType) return;
+        setCardType(type);
+        setLoading(true);
         setCurrentPage(1);
         setStoreSearchQuery('');
         setStoreSortOrder('desc');
-    }, [cardType]);
+    };
 
     useEffect(() => {
         loadDashboardData(currentPage);
@@ -55,6 +57,10 @@ const Dashboard = () => {
 
     // Debounce store search
     useEffect(() => {
+        if (isFirstSearch.current) {
+            isFirstSearch.current = false;
+            return;
+        }
         const timer = setTimeout(() => {
             loadDashboardData(1); // Reset to page 1 on search
         }, 500);
@@ -194,7 +200,7 @@ const Dashboard = () => {
                     border: '1px solid var(--border-color)'
                 }}>
                     <button
-                        onClick={() => setCardType('regular')}
+                        onClick={() => handleCardTypeChange('regular')}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -214,7 +220,7 @@ const Dashboard = () => {
                         Regular Cards
                     </button>
                     <button
-                        onClick={() => setCardType('wallet')}
+                        onClick={() => handleCardTypeChange('wallet')}
                         style={{
                             display: 'flex',
                             alignItems: 'center',

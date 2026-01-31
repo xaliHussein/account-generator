@@ -49,6 +49,7 @@ const StoreManagement = () => {
     const [totalStores, setTotalStores] = useState(0);
     const [totalCards, setTotalCards] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
+    const contextSearchRef = React.useRef(true); // Track first render for debounce
     const CARDS_PER_PAGE = 20;
     const BATCH_ACCOUNTS_PER_PAGE = 20;
 
@@ -103,6 +104,10 @@ const StoreManagement = () => {
 
     // Debounce search
     useEffect(() => {
+        if (contextSearchRef.current) {
+            contextSearchRef.current = false;
+            return;
+        }
         const timer = setTimeout(() => {
             if (currentPage !== 1) {
                 setCurrentPage(1); // loadStores will be triggered by currentPage change
