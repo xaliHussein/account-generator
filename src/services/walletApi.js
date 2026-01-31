@@ -7,9 +7,9 @@ import api from './api';
 /**
  * Get all wallet stores
  */
-export const getWalletStores = async (page = 1, perPage = 15) => {
+export const getWalletStores = async (page = 1, perPage = 15, search = '', sort = 'desc') => {
     const response = await api.get('/api/wallet-stores', {
-        params: { page, per_page: perPage }
+        params: { page, per_page: perPage, search, sort }
     });
     return response.data;
 };

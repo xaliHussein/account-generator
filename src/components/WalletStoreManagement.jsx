@@ -27,6 +27,7 @@ const WalletStoreManagement = () => {
     const [storePage, setStorePage] = useState(1);
     const [totalStorePages, setTotalStorePages] = useState(1);
     const [totalStores, setTotalStores] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
     const STORES_PER_PAGE = 15;
 
     const [loading, setLoading] = useState(true);
@@ -111,13 +112,25 @@ const WalletStoreManagement = () => {
     });
 
     useEffect(() => {
-        loadStores();
-    }, []);
+        loadStores(storePage);
+    }, [storePage, sortOrder]);
+
+    // Debounce search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (storePage !== 1) {
+                setStorePage(1);
+            } else {
+                loadStores(1);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     const loadStores = async (page = 1) => {
         setLoading(true);
         try {
-            const data = await getWalletStores(page, STORES_PER_PAGE);
+            const data = await getWalletStores(page, STORES_PER_PAGE, searchQuery, sortOrder);
 
             let loadedStores = [];
             // Handle Laravel pagination
@@ -129,18 +142,15 @@ const WalletStoreManagement = () => {
                 loadedStores = data;
                 setTotalStores(data.length);
                 setTotalStorePages(1);
+            } else if (data && data.data) {
+                // Fallback if data.data is the array (standard Laravel resource collection sometimes)
+                loadedStores = data.data;
+                setTotalStores(data.total || data.data.length);
+                setTotalStorePages(data.last_page || 1);
             }
 
-            // Client-side sort of the current page
-            // (In a full server-side implementation, we'd pass sort params to API)
-            const sorted = [...loadedStores].sort((a, b) => {
-                const dateA = new Date(a.created_at);
-                const dateB = new Date(b.created_at);
-                return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-            });
-
-            setStores(sorted);
-            setStorePage(page);
+            setStores(loadedStores);
+            // setStorePage(page) is handled by the state change that triggered this or by calling with specific page
         } catch (err) {
             console.error('Failed to load wallet stores:', err);
             setError('Failed to load wallet stores');
@@ -589,12 +599,7 @@ const WalletStoreManagement = () => {
         await fetchStoreCards(store.id, 1);
     };
 
-    // Sort stores
-    const sortedStores = [...stores].sort((a, b) => {
-        const dateA = new Date(a.created_at || 0);
-        const dateB = new Date(b.created_at || 0);
-        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-    });
+
 
     if (loading) {
         return (
@@ -757,6 +762,39 @@ const WalletStoreManagement = () => {
             <div className="section-header">
                 <h2>Wallet Cards</h2>
                 <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={16} style={{
+                            position: 'absolute',
+                            left: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: 'var(--color-text-tertiary)'
+                        }} />
+                        <input
+                            type="text"
+                            placeholder="Search wallet stores..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                padding: '8px 12px 8px 36px',
+                                borderRadius: 'var(--border-radius-lg)',
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--color-bg-primary)',
+                                fontSize: 'var(--font-size-sm)',
+                                width: '240px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = 'var(--color-accent-blue)';
+                                e.target.style.boxShadow = '0 0 0 3px rgba(0, 136, 204, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'var(--border-color)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                            }}
+                        />
+                    </div>
                     <button
                         onClick={() => {
                             const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
@@ -781,13 +819,15 @@ const WalletStoreManagement = () => {
             </div>
 
 
-            {error && (
-                <div className="error-banner">
-                    <AlertCircle size={18} />
-                    {error}
-                    <button onClick={() => setError(null)}><X size={16} /></button>
-                </div>
-            )}
+            {
+                error && (
+                    <div className="error-banner">
+                        <AlertCircle size={18} />
+                        {error}
+                        <button onClick={() => setError(null)}><X size={16} /></button>
+                    </div>
+                )
+            }
 
             {/* Create Store Modal */}
             {
@@ -1397,7 +1437,7 @@ const WalletStoreManagement = () => {
 
             {/* Store Cards Grid */}
             {
-                sortedStores.length === 0 ? (
+                stores.length === 0 ? (
                     <div className="empty-state">
                         <div className="empty-icon wallet-empty-icon">
                             <CreditCard size={48} />
@@ -1410,7 +1450,7 @@ const WalletStoreManagement = () => {
                     </div>
                 ) : (
                     <div className="stores-grid">
-                        {sortedStores.map((store) => (
+                        {stores.map((store) => (
                             <div key={store.id} className="store-card wallet-store-card">
                                 <div className="store-card-header">
                                     <div className="store-icon wallet-store-icon">
@@ -1458,17 +1498,19 @@ const WalletStoreManagement = () => {
             }
 
             {/* Store List Pagination */}
-            {totalStorePages > 1 && (
-                <div style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center' }}>
-                    <Pagination
-                        currentPage={storePage}
-                        totalPages={totalStorePages}
-                        onPageChange={setStorePage}
-                        totalItems={totalStores}
-                        itemsPerPage={STORES_PER_PAGE}
-                    />
-                </div>
-            )}
+            {
+                stores.length > 0 && (
+                    <div style={{ marginTop: 'var(--spacing-xl)', textAlign: 'center' }}>
+                        <Pagination
+                            currentPage={storePage}
+                            totalPages={totalStorePages}
+                            onPageChange={setStorePage}
+                            totalItems={totalStores}
+                            itemsPerPage={STORES_PER_PAGE}
+                        />
+                    </div>
+                )
+            }
         </div >
     );
 };

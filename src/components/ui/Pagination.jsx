@@ -13,7 +13,7 @@ const Pagination = ({
     itemsPerPage,
     showItemCount = true
 }) => {
-    if (totalPages <= 1) return null;
+    // if (totalPages <= 1) return null; // Always show pagination for better UX/Verification
 
     const startItem = (currentPage - 1) * itemsPerPage + 1;
     const endItem = Math.min(currentPage * itemsPerPage, totalItems);

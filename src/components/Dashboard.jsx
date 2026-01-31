@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores } from '../services/api';
 import { searchWalletPhone, getWalletRecentScans } from '../services/walletApi';
-import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone } from 'lucide-react';
+import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown } from 'lucide-react';
 
 /**
  * Dashboard Component
@@ -21,6 +21,16 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Store Search & Sort state
+    const [storeSearchQuery, setStoreSearchQuery] = useState('');
+    const [storeSortOrder, setStoreSortOrder] = useState('desc');
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalStores, setTotalStores] = useState(0);
+    const ITEMS_PER_PAGE = 10;
+
     // Search state (email for regular, phone for wallet)
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -28,18 +38,34 @@ const Dashboard = () => {
 
     // Navigation handler based on card type
     const handleNavigateToStores = () => {
-        navigate(cardType === 'wallet' ? '/wallet-stores' : '/stores');
+        navigate(cardType === 'wallet' ? '/sys-admin/wallet-stores' : '/sys-admin/stores');
     };
 
     useEffect(() => {
-        loadDashboardData();
+        // Reset to page 1 when switching card types
+        setLoading(true); // Show loading immediately
+        setCurrentPage(1);
+        setStoreSearchQuery('');
+        setStoreSortOrder('desc');
     }, [cardType]);
+
+    useEffect(() => {
+        loadDashboardData(currentPage);
+    }, [cardType, currentPage, storeSortOrder]); // Reload when sort changes
+
+    // Debounce store search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            loadDashboardData(1); // Reset to page 1 on search
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [storeSearchQuery]);
 
     useEffect(() => {
         localStorage.setItem('dashboardCardType', cardType);
     }, [cardType]);
 
-    const loadDashboardData = async () => {
+    const loadDashboardData = async (page = 1) => {
         setLoading(true);
         setError(null);
         setSearchQuery('');
@@ -48,20 +74,42 @@ const Dashboard = () => {
             if (cardType === 'regular') {
                 const [statsData, storesData, activityData] = await Promise.all([
                     getDashboardStats(),
-                    getDashboardStores(),
+                    getDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
                     getRecentActivity(),
                 ]);
                 setStats(statsData);
-                setStores(storesData);
+
+                // Handle paginated stores data
+                if (storesData && storesData.data) {
+                    setStores(storesData.data);
+                    setTotalPages(storesData.last_page || 1);
+                    setTotalStores(storesData.total || 0);
+                } else {
+                    setStores(storesData || []);
+                    setTotalPages(1);
+                    setTotalStores(storesData?.length || 0);
+                }
+
                 setRecentActivity(activityData);
             } else {
                 const [statsData, storesData, activityData] = await Promise.all([
                     getWalletDashboardStats(),
-                    getWalletDashboardStores(),
+                    getWalletDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
                     getWalletRecentScans(),
                 ]);
                 setStats(statsData);
-                setStores(storesData);
+
+                // Handle paginated wallet stores data
+                if (storesData && storesData.data) {
+                    setStores(storesData.data);
+                    setTotalPages(storesData.last_page || 1);
+                    setTotalStores(storesData.total || 0);
+                } else {
+                    setStores(storesData || []);
+                    setTotalPages(1);
+                    setTotalStores(storesData?.length || 0);
+                }
+
                 setRecentActivity(activityData);
             }
         } catch (err) {
@@ -70,6 +118,17 @@ const Dashboard = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
+
+    // Toggle Sort Order
+    const toggleStoreSort = () => {
+        setStoreSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
     };
 
     // Search handler - email for regular, phone for wallet
@@ -97,7 +156,7 @@ const Dashboard = () => {
         }
     };
 
-    if (loading) {
+    if (loading && stores.length === 0) {
         return (
             <div className="dashboard-loading">
                 <div className="spinner"></div>
@@ -111,7 +170,7 @@ const Dashboard = () => {
             <div className="dashboard-error">
                 <AlertCircle size={48} />
                 <p>{error}</p>
-                <button onClick={loadDashboardData} className="btn-primary">
+                <button onClick={() => loadDashboardData(currentPage)} className="btn-primary">
                     Retry
                 </button>
             </div>
@@ -396,10 +455,56 @@ const Dashboard = () => {
             {/* Stores Table */}
             <div className="dashboard-section">
                 <div className="section-header">
-                    <h3>{cardType === 'regular' ? 'Stores Overview' : 'Wallet Stores Overview'}</h3>
-                    <button onClick={handleNavigateToStores} className="btn btn-secondary-enhanced">
-                        {cardType === 'regular' ? 'Manage Stores' : 'Manage Wallet Stores'}
-                    </button>
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {cardType === 'regular' ? 'Stores Overview' : 'Wallet Stores Overview'}
+                        {loading && <div className="spinner-small"></div>}
+                    </h3>
+                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} style={{
+                                position: 'absolute',
+                                left: '10px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: 'var(--color-text-tertiary)'
+                            }} />
+                            <input
+                                type="text"
+                                placeholder="Search stores..."
+                                value={storeSearchQuery}
+                                onChange={(e) => setStoreSearchQuery(e.target.value)}
+                                style={{
+                                    padding: '8px 12px 8px 36px',
+                                    borderRadius: 'var(--border-radius-lg)',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--color-bg-primary)',
+                                    fontSize: 'var(--font-size-sm)',
+                                    width: '240px',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.borderColor = 'var(--color-accent-blue)';
+                                    e.target.style.boxShadow = '0 0 0 3px rgba(0, 136, 204, 0.1)';
+                                }}
+                                onBlur={(e) => {
+                                    e.target.style.borderColor = 'var(--border-color)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                                }}
+                            />
+                        </div>
+                        <button
+                            onClick={toggleStoreSort}
+                            className="btn btn-secondary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px' }}
+                        >
+                            {storeSortOrder === 'desc' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                            {storeSortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                        </button>
+                        <button onClick={handleNavigateToStores} className="btn btn-secondary-enhanced">
+                            {cardType === 'regular' ? 'Manage Stores' : 'Manage Wallet Stores'}
+                        </button>
+                    </div>
                 </div>
 
                 {stores.length === 0 ? (
@@ -463,48 +568,94 @@ const Dashboard = () => {
                         </button>
                     </div>
                 ) : (
-                    <div className="stores-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Store Name</th>
-                                    <th>Location</th>
-                                    <th>Total Cards</th>
-                                    <th>{cardType === 'regular' ? 'Active' : 'Active'}</th>
-                                    <th>{cardType === 'regular' ? 'Inactive' : 'Locked'}</th>
-                                    <th>{cardType === 'regular' ? 'Scanned' : 'With Phone'}</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {stores.map((store) => (
-                                    <tr key={store.id}>
-                                        <td className="store-name">{store.name}</td>
-                                        <td>{store.location || '-'}</td>
-                                        <td>{store.cards_count || 0}</td>
-                                        <td className="active-count">{store.active_cards_count || 0}</td>
-                                        <td className="inactive-count">
-                                            {cardType === 'regular' ? (store.inactive_cards_count || 0) : (store.locked_cards_count || 0)}
-                                        </td>
-                                        <td>
-                                            {cardType === 'regular' ? (store.scanned_cards_count || 0) : (store.with_phone_cards_count || 0)}
-                                        </td>
-                                        <td>
-                                            {store.is_active ? (
-                                                <span className="status-badge active">
-                                                    <CheckCircle size={14} /> Active
-                                                </span>
-                                            ) : (
-                                                <span className="status-badge inactive">
-                                                    <XCircle size={14} /> Inactive
-                                                </span>
-                                            )}
-                                        </td>
+                    <>
+                        <div className="stores-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Store Name</th>
+                                        <th>Location</th>
+                                        <th>Total Cards</th>
+                                        <th>{cardType === 'regular' ? 'Active' : 'Active'}</th>
+                                        <th>{cardType === 'regular' ? 'Inactive' : 'Locked'}</th>
+                                        <th>{cardType === 'regular' ? 'Scanned' : 'With Phone'}</th>
+                                        <th>Status</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {stores.map((store) => (
+                                        <tr key={store.id}>
+                                            <td className="store-name">{store.name}</td>
+                                            <td>{store.location || '-'}</td>
+                                            <td>{store.cards_count || 0}</td>
+                                            <td className="active-count">{store.active_cards_count || 0}</td>
+                                            <td className="inactive-count">
+                                                {cardType === 'regular' ? (store.inactive_cards_count || 0) : (store.locked_cards_count || 0)}
+                                            </td>
+                                            <td>
+                                                {cardType === 'regular' ? (store.scanned_cards_count || 0) : (store.with_phone_cards_count || 0)}
+                                            </td>
+                                            <td>
+                                                {store.is_active ? (
+                                                    <span className="status-badge active">
+                                                        <CheckCircle size={14} /> Active
+                                                    </span>
+                                                ) : (
+                                                    <span className="status-badge inactive">
+                                                        <XCircle size={14} /> Inactive
+                                                    </span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="pagination-controls" style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginTop: 'var(--spacing-md)',
+                                padding: 'var(--spacing-sm)',
+                                background: 'var(--color-bg-secondary)',
+                                borderRadius: 'var(--border-radius-md)'
+                            }}>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                    Showing {stores.length} of {totalStores} stores
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1 || loading}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '4px 12px', fontSize: 'var(--font-size-sm)' }}
+                                    >
+                                        Previous
+                                    </button>
+                                    <span style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '0 8px',
+                                        fontSize: 'var(--font-size-sm)',
+                                        fontWeight: 'var(--font-weight-medium)'
+                                    }}>
+                                        Page {currentPage} of {totalPages}
+                                    </span>
+                                    <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages || loading}
+                                        className="btn btn-secondary"
+                                        style={{ padding: '4px 12px', fontSize: 'var(--font-size-sm)' }}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 

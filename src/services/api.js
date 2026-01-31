@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // API base URL - update this for production
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -88,8 +88,8 @@ export const getDashboardStats = async () => {
 /**
  * Get stores with card counts for dashboard
  */
-export const getDashboardStores = async () => {
-    const response = await api.get('/api/dashboard/stores');
+export const getDashboardStores = async (page = 1, perPage = 10, search = '', sort = 'desc') => {
+    const response = await api.get('/api/dashboard/stores', { params: { page, per_page: perPage, search, sort } });
     return response.data;
 };
 
@@ -120,8 +120,8 @@ export const getWalletDashboardStats = async () => {
 /**
  * Get wallet stores with card counts for dashboard
  */
-export const getWalletDashboardStores = async () => {
-    const response = await api.get('/api/dashboard/wallet-stores');
+export const getWalletDashboardStores = async (page = 1, perPage = 10, search = '', sort = 'desc') => {
+    const response = await api.get('/api/dashboard/wallet-stores', { params: { page, per_page: perPage, search, sort } });
     return response.data;
 };
 
@@ -130,8 +130,8 @@ export const getWalletDashboardStores = async () => {
 /**
  * Get all stores
  */
-export const getStores = async (page = 1, perPage = 15) => {
-    const response = await api.get('/api/stores', { params: { page, per_page: perPage } });
+export const getStores = async (page = 1, perPage = 15, search = '', sort = 'desc') => {
+    const response = await api.get('/api/stores', { params: { page, per_page: perPage, search, sort } });
     return response.data;
 };
 

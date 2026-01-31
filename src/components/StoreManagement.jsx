@@ -46,7 +46,9 @@ const StoreManagement = () => {
     // Server-side pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalStores, setTotalStores] = useState(0);
     const [totalCards, setTotalCards] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
     const CARDS_PER_PAGE = 20;
     const BATCH_ACCOUNTS_PER_PAGE = 20;
 
@@ -97,13 +99,33 @@ const StoreManagement = () => {
 
     useEffect(() => {
         loadStores();
-    }, []);
+    }, [currentPage, sortOrder]);
+
+    // Debounce search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (currentPage !== 1) {
+                setCurrentPage(1); // loadStores will be triggered by currentPage change
+            } else {
+                loadStores();
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     const loadStores = async () => {
         setLoading(true);
         try {
-            const data = await getStores();
-            setStores(data);
+            const data = await getStores(currentPage, 15, searchQuery, sortOrder);
+            if (data && data.data) {
+                setStores(data.data);
+                setTotalPages(data.last_page || 1);
+                setTotalStores(data.total || 0);
+            } else {
+                setStores(data || []);
+                setTotalPages(1);
+                setTotalStores(data?.length || 0);
+            }
         } catch (err) {
             console.error('Failed to load stores:', err);
             setError('Failed to load stores');
@@ -714,6 +736,39 @@ const StoreManagement = () => {
             <div className="section-header">
                 <h2>Store Management</h2>
                 <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={16} style={{
+                            position: 'absolute',
+                            left: '10px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: 'var(--color-text-tertiary)'
+                        }} />
+                        <input
+                            type="text"
+                            placeholder="Search stores..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                padding: '8px 12px 8px 36px',
+                                borderRadius: 'var(--border-radius-lg)',
+                                border: '1px solid var(--border-color)',
+                                background: 'var(--color-bg-primary)',
+                                fontSize: 'var(--font-size-sm)',
+                                width: '240px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = 'var(--color-accent-blue)';
+                                e.target.style.boxShadow = '0 0 0 3px rgba(0, 136, 204, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'var(--border-color)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                            }}
+                        />
+                    </div>
                     <button
                         onClick={() => {
                             const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
@@ -1492,11 +1547,7 @@ const StoreManagement = () => {
                 </div>
             ) : (
                 <div className="stores-grid">
-                    {[...stores].sort((a, b) => {
-                        const dateA = new Date(a.created_at || 0);
-                        const dateB = new Date(b.created_at || 0);
-                        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-                    }).map((store) => (
+                    {stores.map((store) => (
                         <div key={store.id} className="store-card">
                             <div className="store-card-header">
                                 <div className="store-icon">
@@ -1539,6 +1590,19 @@ const StoreManagement = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Main Stores Pagination */}
+            {stores.length > 0 && (
+                <div style={{ padding: 'var(--spacing-md)' }}>
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={(page) => setCurrentPage(page)}
+                        totalItems={totalStores}
+                        itemsPerPage={15}
+                    />
                 </div>
             )}
         </div>
