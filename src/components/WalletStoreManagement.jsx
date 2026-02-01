@@ -8,7 +8,11 @@ import {
     downloadWalletCardPDF,
     downloadWalletCardBackPrintSheetPDF
 } from '../services/walletPdfGenerator';
-import { downloadAccountsZip } from '../services/zipExporter';
+import {
+    downloadWalletCardsZip,
+    downloadWalletCardsImagesZip,
+    downloadWalletCardBacksImagesZip
+} from '../services/walletZipExporter';
 import WalletCard from './WalletCard';
 import WalletCardBack from './WalletCardBack';
 import Card from './ui/Card';
@@ -97,20 +101,6 @@ const WalletStoreManagement = () => {
         if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
         return num.toString();
     };
-
-    // Transform wallet card to AccountCard-compatible format for PDF/ZIP export
-    const transformCardForExport = (card) => ({
-        ...card,
-        // Required fields for zipExporter and pdfGenerator
-        accountId: card.id || card.access_token,
-        username: card.first_name + card.last_name,
-        firstName: card.first_name,
-        lastName: card.last_name,
-        serialNumber: card.serial_number,
-        createdAt: card.created_at,
-        status: card.is_locked ? 'locked' : 'active',
-        color: 'blue',
-    });
 
     useEffect(() => {
         loadStores(storePage);
@@ -368,19 +358,36 @@ const WalletStoreManagement = () => {
         }
     };
 
-    // Export functions - transform cards for compatibility
+    // Export functions - using wallet-specific ZIP exporter for consistent card format
     const handleExportZip = async () => {
         if (generatedCards.length === 0) return;
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip' });
         try {
-            const transformedCards = generatedCards.map(transformCardForExport);
-            await downloadAccountsZip(transformedCards, (progress) => {
+            await downloadWalletCardsZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, customLogo, 'blue', cardBackLogo);
+            }, accountIdType);
         } catch (err) {
             console.error('ZIP export failed:', err);
             setError('Failed to export ZIP');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Export ZIP with Images ONLY
+    const handleExportZipImages = async () => {
+        if (generatedCards.length === 0) return;
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip-images' });
+        try {
+            await downloadWalletCardsImagesZip(generatedCards, (progress) => {
+                setExportProgress(progress);
+            }, accountIdType);
+        } catch (err) {
+            console.error('ZIP images export failed:', err);
+            setError('Failed to export ZIP images');
         } finally {
             setActionLoading(false);
             setExportProgress(null);
@@ -423,7 +430,68 @@ const WalletStoreManagement = () => {
         }
     };
 
+    // Export Card Backs as ZIP (Images)
+    const handleExportCardBacksImages = async () => {
+        const count = cardBackCount ? parseInt(cardBackCount, 10) : generatedCards.length;
+        if (count <= 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: count, percentage: 0, status: 'creating-cardback-zip' });
+        try {
+            await downloadWalletCardBacksImagesZip(count, (progress) => {
+                setExportProgress(progress);
+            }, accountIdType);
+        } catch (err) {
+            console.error('Card back images export failed:', err);
+            setError('Failed to export card back images');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
     // Batch-specific exports
+
+    // Batch Output as ZIP (Images)
+    const handleExportBatchZipImages = async (batchId) => {
+        let batch = cardsByBatch[batchId];
+        if (!batch) return;
+
+        setActionLoading(true);
+        try {
+            // Check if we need to fetch the full batch
+            let cardsToExport = batch.cards;
+            // If fetching required logic (similar to other batch exports) - simplifying here assuming generic fetch or reusing logic
+            // But strict implementation requires checking partial status like others:
+            if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
+                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                if (response.cards) {
+                    cardsToExport = response.cards;
+                    setCardsByBatch(prev => ({
+                        ...prev,
+                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                    }));
+                }
+            }
+
+            if (cardsToExport.length === 0) {
+                setActionLoading(false);
+                return;
+            }
+
+            setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-zip-images' });
+            await downloadWalletCardsImagesZip(cardsToExport, (progress) => {
+                setExportProgress(progress);
+            }, accountIdType);
+        } catch (err) {
+            console.error('Batch ZIP images export failed:', err);
+            setError('Failed to export batch ZIP images');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
     const handleExportBatchPrintSheet = async (batchId) => {
         let batch = cardsByBatch[batchId];
         if (!batch) return;
@@ -1033,6 +1101,15 @@ const WalletStoreManagement = () => {
                                         {exportProgress?.status === 'creating-zip' ? `${exportProgress.percentage}%...` : `Download All as ZIP (${generatedCards.length} PDFs)`}
                                     </button>
                                     <button
+                                        onClick={handleExportZipImages}
+                                        className="btn btn-info-enhanced"
+                                        disabled={actionLoading}
+                                        style={{ flex: 1, minWidth: '200px' }}
+                                    >
+                                        <FileArchive size={18} />
+                                        {exportProgress?.status === 'creating-zip-images' ? `${exportProgress.percentage}%...` : `ZIP (Images Only)`}
+                                    </button>
+                                    <button
                                         onClick={handleExportPrintSheet}
                                         className="btn btn-secondary-enhanced"
                                         disabled={actionLoading}
@@ -1049,6 +1126,15 @@ const WalletStoreManagement = () => {
                                     >
                                         <Printer size={18} />
                                         {exportProgress?.status === 'creating-cardback-sheet' ? `${exportProgress.percentage}%...` : 'Download Card Backs Print Sheet'}
+                                    </button>
+                                    <button
+                                        onClick={handleExportCardBacksImages}
+                                        className="btn btn-purple-enhanced"
+                                        disabled={actionLoading}
+                                        style={{ flex: 1, minWidth: '200px' }}
+                                    >
+                                        <FileArchive size={18} />
+                                        {exportProgress?.status === 'creating-cardback-zip' ? `${exportProgress.percentage}%...` : 'ZIP Card Backs (Images)'}
                                     </button>
                                 </div>
 
@@ -1393,12 +1479,21 @@ const WalletStoreManagement = () => {
                                                                 {batch.createdAt ? new Date(batch.createdAt).toLocaleString() : 'Unknown date'}
                                                             </span>
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+                                                            <button
+                                                                onClick={() => handleExportBatchZipImages(batchId)}
+                                                                className="btn btn-info-enhanced"
+                                                                disabled={actionLoading}
+                                                                style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
+                                                            >
+                                                                <FileArchive size={14} />
+                                                                Images ZIP
+                                                            </button>
                                                             <button
                                                                 onClick={() => handleExportBatchPrintSheet(batchId)}
                                                                 className="btn btn-secondary-enhanced"
                                                                 disabled={actionLoading}
-                                                                style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                                style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
                                                             >
                                                                 <Printer size={14} />
                                                                 Print Sheet
@@ -1407,7 +1502,7 @@ const WalletStoreManagement = () => {
                                                                 onClick={() => handleExportBatchCardBackPrintSheet(batchId)}
                                                                 className="btn btn-purple-enhanced"
                                                                 disabled={actionLoading}
-                                                                style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                                style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
                                                             >
                                                                 <Printer size={14} />
                                                                 Card Backs
@@ -1415,7 +1510,7 @@ const WalletStoreManagement = () => {
                                                             <button
                                                                 onClick={() => viewBatchAccounts(batchId)}
                                                                 className="btn btn-primary-enhanced"
-                                                                style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                                style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
                                                                 disabled={actionLoading}
                                                             >
                                                                 <List size={14} />

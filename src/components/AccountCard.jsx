@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useState } from 'react';
+import QRCode from 'react-qr-code';
 
 // Frontend base URL for QR codes - points to the view page
 const FRONTEND_BASE_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
@@ -14,34 +14,12 @@ const AccountCard = ({
     customLogo = null,
     cardColor = 'blue'
 }) => {
-    const [qrValue, setQrValue] = useState('');
-
-    // Generate QR value with frontend view page URL and access token
-    useEffect(() => {
-        if (!account) {
-            setQrValue('');
-            return;
-        }
-
-        // Debug logging to trace accessToken
-        if (!account.accessToken) {
-            console.warn('AccountCard: Missing accessToken for account:', {
-                id: account.id,
-                email: account.email,
-                hasAccessToken: !!account.accessToken,
-                keys: Object.keys(account)
-            });
-        }
-
-        // Use frontend view page with token for security
-        if (account.id && account.accessToken) {
-            setQrValue(`${FRONTEND_BASE_URL}/#/view?id=${account.id}&token=${account.accessToken}`);
-        } else {
-            // Fallback for cards without accessToken
-            console.error('AccountCard: Generating QR without token - this will fail authentication', account.id);
-            setQrValue(`${FRONTEND_BASE_URL}/#/view?id=${account.id}`);
-        }
-    }, [account]);
+    // Card color mapping to match PDF
+    const CARD_COLORS = {
+        blue: '#0088CC',
+        black: '#1E1E1E'
+    };
+    const headerBgColor = CARD_COLORS[cardColor] || CARD_COLORS.blue;
 
     if (!account) {
         return (
@@ -58,14 +36,33 @@ const AccountCard = ({
     }
 
     // Determine header text based on email type
-    const emailLower = account.email.toLowerCase();
+    const emailLower = (account.email || '').toLowerCase();
     const isGoogle = emailLower.includes('@gmail.com') || emailLower.includes('@googlemail.com');
     const headerText = isGoogle ? 'GOOGLE ID - USA ACCOUNT' : 'APPLE ID - USA ACCOUNT';
+
+    // Support serial number in both cases (camelCase or snake_case)
+    const serialNumber = account.serialNumber || account.serial_number;
+
+    // Generate QR value synchronously with fallback
+    const id = account.id;
+    const accessToken = account.accessToken || account.access_token;
+
+    let qrValue = '';
+    if (id && accessToken) {
+        qrValue = `${FRONTEND_BASE_URL}/#/view?id=${id}&token=${accessToken}`;
+    } else if (id) {
+        // Fallback for cards without accessToken
+        qrValue = `${FRONTEND_BASE_URL}/#/view?id=${id}`;
+        // Only log warning in development to avoid console noise during bulk exports
+        if (process.env.NODE_ENV === 'development') {
+            console.warn('AccountCard: Generating QR without token', id);
+        }
+    }
 
     return (
         <div className="account-card-preview apple-style" id="account-card-preview">
             {/* Dynamic Header based on email type */}
-            <div className="apple-card-header">
+            <div className="apple-card-header" style={{ background: headerBgColor }}>
                 <span>{headerText}</span>
             </div>
 
@@ -73,19 +70,23 @@ const AccountCard = ({
             <div className="apple-card-content">
                 {/* Left side - QR Code */}
                 <div className="apple-card-qr-section">
-                    {showQR && qrValue && (
-                        <QRCodeSVG
-                            value={qrValue}
-                            size={100}
-                            level="M"
-                            bgColor="transparent"
-                            fgColor="#000000"
-                        />
-                    )}
-                    {showQR && !qrValue && (
-                        <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
-                            Loading...
+                    {showQR && qrValue ? (
+                        <div style={{ background: 'white', padding: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <QRCode
+                                value={qrValue}
+                                size={100}
+                                level="M"
+                                bgColor="transparent"
+                                fgColor="#000000"
+                                style={{ maxWidth: '100%', height: 'auto' }}
+                            />
                         </div>
+                    ) : (
+                        showQR && (
+                            <div style={{ width: 100, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                                Loading...
+                            </div>
+                        )
                     )}
                 </div>
 
@@ -116,7 +117,7 @@ const AccountCard = ({
                 {/* Serial Number */}
                 <div className="apple-serial">
                     <span className="apple-serial-label">SN:</span>
-                    <span className="apple-serial-value">{account.serialNumber}</span>
+                    <span className="apple-serial-value">{serialNumber}</span>
                 </div>
 
                 {/* Custom Logo or App Store Icon & Badge */}

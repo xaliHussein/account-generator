@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, getStoreBatchCards, deleteBatch } from '../services/api';
 import { downloadAccountsZip } from '../services/zipExporter';
 import { downloadPrintSheetPDF, downloadAccountPDF, downloadCardBackPrintSheetPDF } from '../services/pdfGenerator';
+import { downloadAccountCardsImagesZip, downloadCardBacksImagesZip } from '../services/storeImageExporter';
 import AccountCard from './AccountCard';
 import CardBack from './CardBack';
 import Card from './ui/Card';
@@ -414,6 +415,78 @@ const StoreManagement = () => {
     const openGenerateForm = (store) => {
         setSelectedStore(store);
         setShowGenerateForm(true);
+    };
+
+    // Export ZIP (Images Only)
+    const handleExportZipImages = async () => {
+        if (generatedCards.length === 0) return;
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip-images' });
+        try {
+            await downloadAccountCardsImagesZip(generatedCards, (progress) => {
+                setExportProgress(progress);
+            }, customLogo, cardColor);
+        } catch (err) {
+            console.error('ZIP images export failed:', err);
+            setError('Failed to export ZIP images');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Export Card Backs (Images)
+    const handleExportCardBacksImages = async () => {
+        const count = cardBackCount ? parseInt(cardBackCount, 10) : generatedCards.length;
+        if (count <= 0) return;
+
+        setActionLoading(true);
+        setExportProgress({ current: 0, total: count, percentage: 0, status: 'creating-cardback-zip' });
+        try {
+            await downloadCardBacksImagesZip(count, (progress) => {
+                setExportProgress(progress);
+            }, cardBackLogo, cardColor, accountIdType);
+        } catch (err) {
+            console.error('Card back images export failed:', err);
+            setError('Failed to export card back images');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
+    };
+
+    // Batch Output as ZIP (Images)
+    const handleExportBatchZipImages = async (batchId) => {
+        let batch = cardsByBatch[batchId];
+        if (!batch) return;
+
+        setActionLoading(true);
+        try {
+            // Check if we need to fetch the full batch
+            let cardsToExport = batch.cards;
+            if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
+                const response = await getStoreBatchCards(selectedStore.id, batchId);
+                if (response.cards) {
+                    cardsToExport = response.cards.data || response.cards;
+                }
+            }
+
+            if (cardsToExport.length === 0) {
+                setActionLoading(false);
+                return;
+            }
+
+            setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-zip-images' });
+            await downloadAccountCardsImagesZip(cardsToExport, (progress) => {
+                setExportProgress(progress);
+            }, customLogo, cardColor);
+        } catch (err) {
+            console.error('Batch ZIP images export failed:', err);
+            setError('Failed to export batch ZIP images');
+        } finally {
+            setActionLoading(false);
+            setExportProgress(null);
+        }
     };
 
     // View existing cards for a store (for export) - with server-side pagination
@@ -1049,7 +1122,16 @@ const StoreManagement = () => {
                                     style={{ flex: 1, minWidth: '200px' }}
                                 >
                                     <FileArchive size={18} />
-                                    {exportProgress ? `${exportProgress.percentage}%...` : `Download All as ZIP (${generatedCards.length} PDFs)`}
+                                    {exportProgress && ['packaging', 'compressing', 'finalizing'].includes(exportProgress.status) ? `${exportProgress.percentage}%...` : `Download All as ZIP (${generatedCards.length} PDFs)`}
+                                </button>
+                                <button
+                                    onClick={handleExportZipImages}
+                                    className="btn btn-info-enhanced"
+                                    disabled={actionLoading}
+                                    style={{ flex: 1, minWidth: '200px' }}
+                                >
+                                    <FileArchive size={18} />
+                                    {exportProgress?.status === 'creating-zip-images' ? `${exportProgress.percentage}%...` : `ZIP (Images Only)`}
                                 </button>
                                 <button
                                     onClick={handleExportPrintSheet}
@@ -1068,6 +1150,15 @@ const StoreManagement = () => {
                                 >
                                     <Printer size={18} />
                                     {exportProgress?.status === 'creating-cardback-sheet' ? `${exportProgress.percentage}%...` : `Download Card Backs Print Sheet`}
+                                </button>
+                                <button
+                                    onClick={handleExportCardBacksImages}
+                                    className="btn btn-purple-enhanced"
+                                    disabled={actionLoading}
+                                    style={{ flex: 1, minWidth: '200px' }}
+                                >
+                                    <FileArchive size={18} />
+                                    {exportProgress?.status === 'creating-cardback-zip' ? `${exportProgress.percentage}%...` : `ZIP Card Backs (Images)`}
                                 </button>
                             </div>
 
@@ -1428,12 +1519,21 @@ const StoreManagement = () => {
                                                             {batch.createdAt ? new Date(batch.createdAt).toLocaleString() : 'Unknown date'}
                                                         </span>
                                                     </div>
-                                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => handleExportBatchZipImages(batchId)}
+                                                            className="btn btn-info-enhanced"
+                                                            disabled={actionLoading}
+                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
+                                                        >
+                                                            <FileArchive size={14} />
+                                                            Images ZIP
+                                                        </button>
                                                         <button
                                                             onClick={() => handleExportBatchPrintSheet(batchId)}
                                                             className="btn btn-secondary-enhanced"
                                                             disabled={actionLoading}
-                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
                                                         >
                                                             <Printer size={14} />
                                                             Print Sheet
@@ -1442,7 +1542,7 @@ const StoreManagement = () => {
                                                             onClick={() => handleExportBatchCardBackPrintSheet(batchId)}
                                                             className="btn btn-purple-enhanced"
                                                             disabled={actionLoading}
-                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)' }}
+                                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)', padding: 'var(--spacing-xs) var(--spacing-sm)', minWidth: '120px' }}
                                                         >
                                                             <Printer size={14} />
                                                             Card Backs
