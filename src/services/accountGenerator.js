@@ -135,7 +135,7 @@ const generateSerialNumber = () => {
  * @param {string} options.emailType - Email type: 'icloud', 'gmail', or 'random'
  */
 export const generateAccount = (options = {}) => {
-  const { emailType = 'random' } = options;
+  const { emailType = 'icloud' } = options;
   const firstName = randomElement(firstNames);
   const lastName = randomElement(lastNames);
   const username = generateUsername(firstName, lastName);

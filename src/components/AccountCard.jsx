@@ -74,7 +74,7 @@ const AccountCard = ({
                         <div style={{ background: 'white', padding: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <QRCode
                                 value={qrValue}
-                                size={100}
+                                size={110}
                                 level="M"
                                 bgColor="#FFFFFF"
                                 fgColor="#000000"

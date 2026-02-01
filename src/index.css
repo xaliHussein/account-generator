@@ -1691,9 +1691,6 @@ a:hover {
   align-items: flex-start;
 }
 
-.apple-card-qr-section svg {
-  border: 1px solid #000;
-}
 
 .apple-card-right {
   flex: 1;

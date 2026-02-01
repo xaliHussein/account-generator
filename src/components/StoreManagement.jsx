@@ -1021,7 +1021,6 @@ const StoreManagement = () => {
                                     value={generateData.email_type}
                                     onChange={(e) => setGenerateData({ ...generateData, email_type: e.target.value })}
                                 >
-                                    <option value="random">Random</option>
                                     <option value="icloud">iCloud Only</option>
                                     <option value="gmail">Gmail Only</option>
                                 </select>

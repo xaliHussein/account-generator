@@ -53,6 +53,11 @@ const ACCOUNT_CARD_CSS_OVERRIDES = `
     .apple-credentials-box {
         margin-bottom: 2px !important;
     }
+    /* Reduce font size for email/password to prevent wrapping */
+    .apple-credential-value {
+        font-size: 10px !important;
+        line-height: 1.2 !important;
+    }
     .apple-card-footer {
         padding: 10px 12px !important; /* Increased whitespace */
     }

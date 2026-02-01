@@ -173,7 +173,7 @@ const ViewAccountPage = () => {
         <div className="view-account-page" style={{ '--theme-color': themeColor }}>
             {/* Phone Collection Modal */}
             {showPhoneModal && (
-                <div className="phone-modal-overlay">
+                <div className="phone-modal-overlay" style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
                     <div className="phone-modal">
                         <button
                             type="button"
