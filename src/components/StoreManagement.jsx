@@ -68,6 +68,7 @@ const StoreManagement = () => {
         email_type: 'icloud',
         color: 'blue',
         email_prefix: '',
+        password_prefix: '',
     });
 
     // Card customization settings
@@ -199,7 +200,8 @@ const StoreManagement = () => {
                 generateData.count,
                 generateData.email_type,
                 generateData.color,
-                generateData.email_prefix || null
+                generateData.email_prefix || null,
+                generateData.password_prefix || null
             );
 
             // Store generated cards for export
@@ -415,6 +417,7 @@ const StoreManagement = () => {
     const openGenerateForm = (store) => {
         setSelectedStore(store);
         setShowGenerateForm(true);
+        setGenerateData({ count: 10, email_type: 'random', color: 'blue', email_prefix: '', password_prefix: '' });
     };
 
     // Export ZIP (Images Only)
@@ -1018,6 +1021,7 @@ const StoreManagement = () => {
                                     value={generateData.email_type}
                                     onChange={(e) => setGenerateData({ ...generateData, email_type: e.target.value })}
                                 >
+                                    <option value="random">Random</option>
                                     <option value="icloud">iCloud Only</option>
                                     <option value="gmail">Gmail Only</option>
                                 </select>
@@ -1040,9 +1044,34 @@ const StoreManagement = () => {
                                 />
                                 <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
                                     {generateData.email_prefix ? (
-                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code> <span style={{ opacity: 0.7 }}>(# = random digit)</span></>
+                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'random' ? '...' : (generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com')}</code></>
                                     ) : (
-                                        'Optional: Enter up to 8 alphanumeric characters for email prefix'
+                                        'Optional: Enter up to 8 alphanumeric characters'
+                                    )}
+                                </span>
+                            </div>
+                            <div className="form-group">
+                                <label>Password Prefix (exactly 6 characters)</label>
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    placeholder="e.g., MyPass"
+                                    value={generateData.password_prefix}
+                                    onChange={(e) => {
+                                        const value = e.target.value.slice(0, 6);
+                                        setGenerateData({ ...generateData, password_prefix: value });
+                                    }}
+                                    style={{ fontFamily: 'monospace' }}
+                                />
+                                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                                    {generateData.password_prefix ? (
+                                        generateData.password_prefix.length === 6 ? (
+                                            <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.password_prefix}<span style={{ color: 'var(--color-accent-blue)' }}>••••••</span></code> (6 chars auto-generated)</>
+                                        ) : (
+                                            <span style={{ color: 'var(--color-accent-orange)' }}>Enter exactly 6 characters ({generateData.password_prefix.length}/6)</span>
+                                        )
+                                    ) : (
+                                        'Optional: Enter exactly 6 characters, remaining 6 will be auto-generated'
                                     )}
                                 </span>
                             </div>

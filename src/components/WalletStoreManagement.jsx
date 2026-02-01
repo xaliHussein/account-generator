@@ -80,6 +80,7 @@ const WalletStoreManagement = () => {
         count: 10,
         email_type: 'icloud',
         email_prefix: '',
+        password_prefix: '',
     });
 
     // Print sheet settings
@@ -213,7 +214,8 @@ const WalletStoreManagement = () => {
                 generateData.count,
                 generateData.email_type,
                 generateData.email_prefix || null,
-                accountIdType
+                accountIdType,
+                generateData.password_prefix || null
             );
 
             // Transform cards for display and export
@@ -663,7 +665,7 @@ const WalletStoreManagement = () => {
     const openGenerateForm = (store) => {
         setSelectedStore(store);
         setShowGenerateForm(true);
-        setGenerateData({ count: 10, email_type: 'icloud', email_prefix: '' });
+        setGenerateData({ count: 10, email_type: 'icloud', email_prefix: '', password_prefix: '' });
     };
 
     const handleViewCards = async (store) => {
@@ -1040,6 +1042,31 @@ const WalletStoreManagement = () => {
                                                 <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
                                             ) : (
                                                 'Optional: Enter up to 8 alphanumeric characters'
+                                            )}
+                                        </span>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Password Prefix (exactly 6 characters)</label>
+                                        <input
+                                            type="text"
+                                            maxLength={6}
+                                            placeholder="e.g., MyPass"
+                                            value={generateData.password_prefix}
+                                            onChange={(e) => {
+                                                const value = e.target.value.slice(0, 6);
+                                                setGenerateData({ ...generateData, password_prefix: value });
+                                            }}
+                                            style={{ fontFamily: 'monospace' }}
+                                        />
+                                        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                                            {generateData.password_prefix ? (
+                                                generateData.password_prefix.length === 6 ? (
+                                                    <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.password_prefix}<span style={{ color: 'var(--color-accent-blue)' }}>••••••</span></code> (6 chars auto-generated)</>
+                                                ) : (
+                                                    <span style={{ color: 'var(--color-accent-orange)' }}>Enter exactly 6 characters ({generateData.password_prefix.length}/6)</span>
+                                                )
+                                            ) : (
+                                                'Optional: Enter exactly 6 characters, remaining 6 will be auto-generated'
                                             )}
                                         </span>
                                     </div>

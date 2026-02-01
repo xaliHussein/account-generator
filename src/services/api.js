@@ -200,12 +200,13 @@ export const getStoreBatchCards = async (storeId, batchId, page = 1, perPage = 2
 /**
  * Generate cards for a store
  */
-export const generateCards = async (storeId, count, emailType = 'random', color = 'blue', emailPrefix = null) => {
+export const generateCards = async (storeId, count, emailType = 'random', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
     const response = await api.post(`/api/stores/${storeId}/cards/generate`, {
         count,
         email_type: emailType,
         color,
         email_prefix: emailPrefix || undefined,
+        password_prefix: passwordPrefix || undefined,
     });
     return response.data;
 };
@@ -252,12 +253,13 @@ export const submitPhoneNumber = async (cardId, phoneNumber) => {
 /**
  * Generate cards for the Generator page (system cards)
  */
-export const generateSystemCards = async (count, emailType = 'random', color = 'blue', emailPrefix = null) => {
+export const generateSystemCards = async (count, emailType = 'random', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
     const response = await api.post('/api/system/cards/generate', {
         count,
         email_type: emailType,
         color,
         email_prefix: emailPrefix || undefined,
+        password_prefix: passwordPrefix || undefined,
     });
     return response.data;
 };

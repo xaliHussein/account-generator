@@ -45,12 +45,13 @@ export const deleteWalletStore = async (storeId) => {
 /**
  * Generate wallet cards for a store
  */
-export const generateWalletCards = async (storeId, count, emailType = 'icloud', emailPrefix = null, walletType = 'apple') => {
+export const generateWalletCards = async (storeId, count, emailType = 'icloud', emailPrefix = null, walletType = 'apple', passwordPrefix = null) => {
     const response = await api.post(`/api/wallet-stores/${storeId}/cards/generate`, {
         count,
         email_type: emailType,
         email_prefix: emailPrefix,
         wallet_type: walletType,
+        password_prefix: passwordPrefix,
     });
     return response.data;
 };

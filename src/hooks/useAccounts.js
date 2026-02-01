@@ -56,8 +56,8 @@ export const useAccounts = () => {
   /**
    * Generate accounts via server API
    */
-  const generateAccountsApi = useCallback(async (count, emailType = 'random', color = 'blue') => {
-    const response = await generateSystemCards(count, emailType, color);
+  const generateAccountsApi = useCallback(async (count, emailType = 'random', color = 'blue', passwordPrefix = null) => {
+    const response = await generateSystemCards(count, emailType, color, null, passwordPrefix);
     const newCards = response.cards || [];
 
     // Update local state with new cards at the beginning

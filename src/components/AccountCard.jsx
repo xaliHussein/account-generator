@@ -76,7 +76,7 @@ const AccountCard = ({
                                 value={qrValue}
                                 size={100}
                                 level="M"
-                                bgColor="transparent"
+                                bgColor="#FFFFFF"
                                 fgColor="#000000"
                                 style={{ maxWidth: '100%', height: 'auto' }}
                             />

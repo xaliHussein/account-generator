@@ -52,6 +52,7 @@ function App() {
     const [cardColor, setCardColor] = useState('blue'); // 'blue' or 'black'
     const [emailType, setEmailType] = useState('random'); // 'random', 'icloud', or 'gmail'
     const [accountIdType, setAccountIdType] = useState('apple'); // 'apple' or 'google'
+    const [passwordPrefix, setPasswordPrefix] = useState(''); // Custom password prefix
 
     // Print Sheet Size (default 60cm x 90cm)
     const [boardWidth, setBoardWidth] = useState('');
@@ -104,7 +105,7 @@ function App() {
 
         try {
             // Use server API to generate cards
-            const newAccounts = await generateAccountsApi(count, emailType, cardColor);
+            const newAccounts = await generateAccountsApi(count, emailType, cardColor, passwordPrefix || null);
 
             setGenerateProgress({ current: count, total: count, percentage: 100, status: 'complete' });
             logCreate(count);
@@ -124,7 +125,7 @@ function App() {
             setIsGenerating(false);
             setGenerateProgress(null);
         }
-    }, [generateAccountsApi, logCreate, toast, emailType, cardColor]);
+    }, [generateAccountsApi, logCreate, toast, emailType, cardColor, passwordPrefix]);
 
     /**
      * Handle account deletion
@@ -694,6 +695,46 @@ function App() {
                                             color: 'var(--color-text-tertiary)'
                                         }}>
                                             Applied to newly generated accounts
+                                        </span>
+                                    </div>
+
+                                    {/* Password Prefix */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                                        <label style={{
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 'var(--font-weight-medium)',
+                                            color: 'var(--color-text-secondary)'
+                                        }}>Password Prefix (6 chars)</label>
+                                        <input
+                                            type="text"
+                                            maxLength={6}
+                                            placeholder="e.g., MyPass"
+                                            value={passwordPrefix}
+                                            onChange={(e) => setPasswordPrefix(e.target.value.slice(0, 6))}
+                                            style={{
+                                                padding: 'var(--spacing-sm) var(--spacing-md)',
+                                                border: '1px solid var(--border-color-strong)',
+                                                borderRadius: 'var(--border-radius-md)',
+                                                background: 'var(--color-bg-secondary)',
+                                                fontSize: 'var(--font-size-md)',
+                                                color: 'var(--color-text-primary)',
+                                                outline: 'none',
+                                                fontFamily: 'monospace'
+                                            }}
+                                        />
+                                        <span style={{
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: 'var(--color-text-tertiary)'
+                                        }}>
+                                            {passwordPrefix ? (
+                                                passwordPrefix.length === 6 ? (
+                                                    <>Preview: {passwordPrefix}••••••</>
+                                                ) : (
+                                                    <span style={{ color: 'var(--color-accent-orange)' }}>Must be exactly 6 characters</span>
+                                                )
+                                            ) : (
+                                                'Optional: First 6 chars of password'
+                                            )}
                                         </span>
                                     </div>
 
