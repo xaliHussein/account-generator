@@ -417,7 +417,7 @@ const StoreManagement = () => {
     const openGenerateForm = (store) => {
         setSelectedStore(store);
         setShowGenerateForm(true);
-        setGenerateData({ count: 10, email_type: 'random', color: 'blue', email_prefix: '', password_prefix: '' });
+        setGenerateData({ count: 10, email_type: 'icloud', color: 'blue', email_prefix: '', password_prefix: '' });
     };
 
     // Export ZIP (Images Only)
@@ -1043,7 +1043,7 @@ const StoreManagement = () => {
                                 />
                                 <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
                                     {generateData.email_prefix ? (
-                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'random' ? '...' : (generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com')}</code></>
+                                        <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
                                     ) : (
                                         'Optional: Enter up to 8 alphanumeric characters'
                                     )}

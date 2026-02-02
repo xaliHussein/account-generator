@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // API base URL - update this for production
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -200,7 +200,7 @@ export const getStoreBatchCards = async (storeId, batchId, page = 1, perPage = 2
 /**
  * Generate cards for a store
  */
-export const generateCards = async (storeId, count, emailType = 'random', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
+export const generateCards = async (storeId, count, emailType = 'icloud', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
     const response = await api.post(`/api/stores/${storeId}/cards/generate`, {
         count,
         email_type: emailType,
@@ -253,7 +253,7 @@ export const submitPhoneNumber = async (cardId, phoneNumber) => {
 /**
  * Generate cards for the Generator page (system cards)
  */
-export const generateSystemCards = async (count, emailType = 'random', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
+export const generateSystemCards = async (count, emailType = 'icloud', color = 'blue', emailPrefix = null, passwordPrefix = null) => {
     const response = await api.post('/api/system/cards/generate', {
         count,
         email_type: emailType,
