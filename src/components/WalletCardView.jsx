@@ -42,6 +42,9 @@ const WalletCardView = () => {
     // Warning modal state
     const [warningModal, setWarningModal] = useState({ show: false, type: '', message: '' });
 
+    // Terms acceptance state
+    const [termsAccepted, setTermsAccepted] = useState(false);
+
     // Video URL (placeholder - can be configured)
     const videoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Replace with actual video
 
@@ -310,10 +313,50 @@ const WalletCardView = () => {
         );
     };
 
+    // Terms Modal Component
+    const TermsModal = () => {
+        if (termsAccepted) return null;
+
+        return (
+            <div className="wallet-terms-overlay" dir="rtl">
+                <div className="wallet-terms-modal">
+                    <h2>الشروط والأحكام</h2>
+                    <div className="terms-content">
+                        <h3>تعليمات إنشاء حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</h3>
+                        <p>هذا الكارت هو محفظة لتخزين حساب الـ {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</p>
+                        <p>يقوم الزبون بإنشائه بنفسه من جهازه الخاص وبرقم هاتفه، ويتم حفظه هنا.</p>
+                        <p>احفظ رقمك الشخصي ثم ابدأ بإنشاء الحساب على رقم هاتفك.</p>
+
+                        <h3>ملاحظات مهمة:</h3>
+                        <ol>
+                            <li>يجب استعمال رقم هاتف لم يستعمل سابقا في تفعيل حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</li>
+                            <li>يتم حفظ معلومات الحساب في نظامنا 3 سنوات بعدها غير مسؤلين عن فقدان المعلومات بعد 3 سنوات من تفعيل الحساب.</li>
+                            <li>يمكنك طلب بطاقة خاصه تتضمن معلومات حسابك عند تفعيل حسابك.</li>
+                        </ol>
+
+                        <p>يجب ألا يكون الجهاز قد تم إنشاء حسابات عليه سابقا. في بعض الأحيان تكون هناك هواتف مستعملة تم إنشاء حسابات عليها في وقت سابق، حيث إن شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} تعطي سماحًا بعدد معين من الحسابات لكل جهاز لذلك قد يتم حظر الجهاز من قبل شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} وتظهر رسالة تعذر إنشاء الحساب، حاول في وقت لاحق. هذه المشكلة لا علاقة لها بالبطاقة، ولكنها تعني أن الجهاز نفسه محظور من إنشاء الحسابات في هذه الحالة قم بتفعيل الحساب على جهاز آخر ثم سجل الدخول إلى جهازك. قم بأخذ لقطة شاشة للحساب والاحتفاظ بها لديك بعد تفعيله.</p>
+
+                        <h3>إخلاء مسؤولية:</h3>
+                        <p>الضمان المقدم يقتصر حصريا على ضمان استبدال بطاقة المحفظة فقط، ولا يشمل أي مسؤولية أخرى متعلقة بحساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} أو أي أضرار مباشرة أو غير مباشرة قد تلحق بالجهاز لأي سبب كان. نحن لا نبيع حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، وإنما نبيع بطاقة محفظة مخصصة لتخزين الحساب الذي يقوم الزبون بإنشائه بنفسه وباستخدام جهازه ورقم هاتفه الشخصي. في الوضع الطبيعي إن إنشاء الحساب يدويا وبشكل مباشر وبرقم هاتف الزبون يُعد حسابًا رسميا وأصوليا صالحًا لاستخدامه كحساب iCloud و {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}. ومع ذلك، قد تطرأ في أي وقت أخطاء أو مشكلات داخل أنظمة شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، دون أسباب واضحة، قد تؤدي إلى تعطيل الوصول إلى بعض الخدمات أو التسبب بأضرار، وقد صرحت شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} بذلك صراحة ضمن شروط استخدام خدماتها. وبمجرد استخدام أي من خدمات أو منتجات {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، فإن المستخدم يقر ويتحمل كامل المسؤولية عن ذلك وحده. وعليه فإن البائع يخلي مسؤوليته بالكامل وينتهي التزامه عند تسليم بطاقة المحفظة للزبون.</p>
+
+                        <p className="terms-final"><strong>يرجى الالتزام بجميع التعليمات، ويُعد استخدامك للمحفظة إقرارًا بموافقتك الكاملة على جميع الشروط والتعليمات المذكورة أعلاه.</strong></p>
+                    </div>
+                    <button
+                        className="btn btn-wallet-primary terms-accept-btn"
+                        onClick={() => setTermsAccepted(true)}
+                    >
+                        موافق
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     // Phase 1: Phone Collection
     if (!card.phone_collected) {
         return (
             <div className="wallet-card-view phone-collection" dir="rtl">
+                <TermsModal />
                 <WarningModal />
                 <div className="wallet-view-container">
                     <div className="wallet-view-header">

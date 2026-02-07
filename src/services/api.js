@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // API base URL - update this for production
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -296,6 +296,26 @@ export const transferSystemCards = async (cardIds, storeId) => {
         card_ids: cardIds,
         store_id: storeId,
     });
+    return response.data;
+};
+
+// ==================== Activated Cards ====================
+
+/**
+ * Get activated cards (cards with phone numbers)
+ */
+export const getActivatedCards = async (page = 1, perPage = 12, sort = 'newest', search = '') => {
+    const response = await api.get('/api/cards/activated', { 
+        params: { page, per_page: perPage, sort, search } 
+    });
+    return response.data;
+};
+
+/**
+ * Deactivate a card (clear phone number)
+ */
+export const deactivateCard = async (cardId) => {
+    const response = await api.post(`/api/cards/${cardId}/deactivate`);
     return response.data;
 };
 

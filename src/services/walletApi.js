@@ -186,3 +186,23 @@ export const getWalletRecentScans = async () => {
     const response = await api.get('/api/wallet-dashboard/recent-activity');
     return response.data;
 };
+
+// ==================== Activated Wallet Cards ====================
+
+/**
+ * Get activated wallet cards (cards with phone numbers collected)
+ */
+export const getActivatedWalletCards = async (page = 1, perPage = 12, sort = 'newest', search = '') => {
+    const response = await api.get('/api/wallet-cards/activated', { 
+        params: { page, per_page: perPage, sort, search } 
+    });
+    return response.data;
+};
+
+/**
+ * Deactivate a wallet card (clear phone number)
+ */
+export const deactivateWalletCard = async (cardId) => {
+    const response = await api.post(`/api/wallet-cards/${cardId}/deactivate`);
+    return response.data;
+};

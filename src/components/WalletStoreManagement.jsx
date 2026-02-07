@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     getWalletStores, createWalletStore, updateWalletStore, deleteWalletStore,
-    generateWalletCards, getWalletStoreCards, getWalletBatchCards
+    generateWalletCards, getWalletStoreCards, getWalletBatchCards,
+    getActivatedWalletCards, deactivateWalletCard
 } from '../services/walletApi';
 import {
     downloadWalletPrintSheetPDF,
@@ -19,7 +20,7 @@ import Card from './ui/Card';
 import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
-    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search
+    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search, Phone, XCircle
 } from 'lucide-react';
 
 /**
@@ -60,6 +61,15 @@ const WalletStoreManagement = () => {
     const [selectedPreviewCard, setSelectedPreviewCard] = useState(null);
     const [batchSearchQuery, setBatchSearchQuery] = useState('');
     const [batchAccountsPage, setBatchAccountsPage] = useState(1);
+
+    // Activated cards modal state
+    const [showActivatedModal, setShowActivatedModal] = useState(false);
+    const [activatedCards, setActivatedCards] = useState([]);
+    const [activatedLoading, setActivatedLoading] = useState(false);
+    const [activatedPage, setActivatedPage] = useState(1);
+    const [activatedTotalPages, setActivatedTotalPages] = useState(1);
+    const [activatedSort, setActivatedSort] = useState('newest');
+    const [activatedSearch, setActivatedSearch] = useState('');
 
     const BATCH_ACCOUNTS_PER_PAGE = 20;
 
@@ -674,6 +684,44 @@ const WalletStoreManagement = () => {
         await fetchStoreCards(store.id, 1);
     };
 
+    // Load activated cards
+    const loadActivatedCards = async (page = 1) => {
+        setActivatedLoading(true);
+        try {
+            const data = await getActivatedWalletCards(page, 15, activatedSort, activatedSearch);
+            setActivatedCards(data.data);
+            setActivatedPage(data.current_page);
+            setActivatedTotalPages(data.last_page);
+        } catch (err) {
+            console.error('Failed to load activated cards:', err);
+            // Non-critical error, just log it
+        } finally {
+            setActivatedLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showActivatedModal) {
+            loadActivatedCards(activatedPage);
+        }
+    }, [showActivatedModal, activatedPage, activatedSort]);
+
+    // Deactivate card handler
+    const handleDeactivateCard = async (cardId) => {
+        if (!window.confirm('Are you sure you want to deactivate this wallet card? The phone number will be removed.')) {
+            return;
+        }
+
+        try {
+            await deactivateWalletCard(cardId);
+            loadActivatedCards(activatedPage); // Reload list
+            loadStores(); // Reload stores to update counts
+        } catch (err) {
+            console.error('Failed to deactivate card:', err);
+            alert('Failed to deactivate card');
+        }
+    };
+
 
 
     if (loading) {
@@ -834,6 +882,171 @@ const WalletStoreManagement = () => {
                 );
             })()}
 
+            {/* View Activated Wallet Cards Modal */}
+            {showActivatedModal && (
+                <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                    <div className="modal-content" style={{
+                        maxWidth: '900px',
+                        maxHeight: '85vh',
+                        background: 'var(--color-bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--border-radius-lg)',
+                        padding: 'var(--spacing-xl)',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                            <h3>
+                                <Phone size={20} style={{ marginRight: 'var(--spacing-sm)', verticalAlign: 'middle' }} />
+                                Activated Wallet Cards
+                            </h3>
+                            <button
+                                onClick={() => setShowActivatedModal(false)}
+                                className="btn btn-ghost"
+                                style={{ padding: 'var(--spacing-xs)' }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Search and Sort */}
+                        <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-md)' }}>
+                            <div style={{ flex: 1, position: 'relative' }}>
+                                <Search size={18} style={{
+                                    position: 'absolute',
+                                    left: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    color: 'var(--color-text-tertiary)'
+                                }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search by email, phone, or serial..."
+                                    value={activatedSearch}
+                                    onChange={(e) => {
+                                        setActivatedSearch(e.target.value);
+                                        if (e.target.value === '' || e.target.value.length > 2) {
+                                            setActivatedPage(1);
+                                            loadActivatedCards(1);
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            setActivatedPage(1);
+                                            loadActivatedCards(1);
+                                        }
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                                        paddingLeft: '40px',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--border-radius-md)',
+                                        background: 'var(--color-bg-secondary)',
+                                    }}
+                                />
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setActivatedSort(prev => prev === 'newest' ? 'oldest' : 'newest');
+                                }}
+                                className="btn btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            >
+                                {activatedSort === 'newest' ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                                {activatedSort === 'newest' ? 'Newest' : 'Oldest'}
+                            </button>
+                        </div>
+
+                        {/* Table */}
+                        <div style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 'var(--border-radius-md)',
+                            position: 'relative'
+                        }}>
+                            {activatedLoading && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    background: 'rgba(var(--color-bg-primary-rgb, 255, 255, 255), 0.7)',
+                                    backdropFilter: 'blur(2px)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 10
+                                }}>
+                                    <div className="spinner"></div>
+                                </div>
+                            )}
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead style={{ zIndex: 1 }}>
+                                    <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Store</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Date</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activatedCards.length === 0 && !activatedLoading ? (
+                                        <tr>
+                                            <td colSpan="6" style={{ padding: 'var(--spacing-lg)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                                                No activated wallet cards found.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        activatedCards.map((card) => (
+                                            <tr key={card.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
+                                                    {card.email}
+                                                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{card.firstName} {card.lastName}</div>
+                                                </td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.storeName}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.phone}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                                    {new Date(card.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right' }}>
+                                                    <button
+                                                        onClick={() => handleDeactivateCard(card.id)}
+                                                        className="btn btn-ghost"
+                                                        title="Deactivate and Clear Phone"
+                                                        style={{ color: 'var(--color-accent-red)', padding: '4px' }}
+                                                    >
+                                                        <XCircle size={16} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        <div style={{ marginTop: 'var(--spacing-md)' }}>
+                            <Pagination
+                                currentPage={activatedPage}
+                                totalPages={activatedTotalPages}
+                                onPageChange={(page) => setActivatedPage(page)}
+                                totalItems={-1}
+                                itemsPerPage={15}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             <div className="section-header">
                 <h2>Wallet Cards</h2>
                 <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
@@ -882,6 +1095,15 @@ const WalletStoreManagement = () => {
                     >
                         {sortOrder === 'desc' ? <ArrowDown size={16} /> : <ArrowUp size={16} />}
                         {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                    </button>
+                    <button
+                        onClick={() => {
+                            setShowActivatedModal(true);
+                            loadActivatedCards(1);
+                        }}
+                        className="btn btn-secondary-enhanced"
+                    >
+                        <Phone size={18} /> View Activated Cards
                     </button>
                     <button
                         onClick={() => setShowCreateForm(true)}

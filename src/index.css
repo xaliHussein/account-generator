@@ -1734,7 +1734,7 @@ a:hover {
 }
 
 .apple-credential-value.password {
-  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-family: 'SF Pro Text', 'Helvetica', 'Arial', sans-serif;
 }
 
 .apple-name-section {
@@ -4265,4 +4265,122 @@ a:hover {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ============================================
+   WALLET TERMS AND CONDITIONS MODAL
+   ============================================ */
+
+/* Terms Overlay */
+.wallet-terms-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 22, 40, 0.95);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: var(--spacing-md);
+}
+
+/* Terms Modal Container */
+.wallet-terms-modal {
+  background: linear-gradient(135deg, #1a2c4a 0%, #0d1929 100%);
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  border-radius: 20px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 200, 255, 0.15);
+  animation: modalSlideIn 0.3s ease-out;
+  overflow: hidden;
+}
+
+.wallet-terms-modal h2 {
+  color: #00c8ff;
+  font-size: 1.5rem;
+  text-align: center;
+  padding: var(--spacing-lg);
+  margin: 0;
+  border-bottom: 1px solid rgba(0, 200, 255, 0.2);
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.1) 0%, rgba(0, 100, 200, 0.05) 100%);
+}
+
+.wallet-terms-modal .terms-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 200, 255, 0.3) transparent;
+}
+
+.wallet-terms-modal .terms-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.wallet-terms-modal .terms-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wallet-terms-modal .terms-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 200, 255, 0.3);
+  border-radius: 3px;
+}
+
+.wallet-terms-modal .terms-content h3 {
+  color: #00c8ff;
+  font-size: 1.1rem;
+  margin: var(--spacing-lg) 0 var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid rgba(0, 200, 255, 0.15);
+}
+
+.wallet-terms-modal .terms-content h3:first-child {
+  margin-top: 0;
+}
+
+.wallet-terms-modal .terms-content p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--font-size-md);
+  line-height: 1.7;
+  margin-bottom: var(--spacing-md);
+  text-align: justify;
+}
+
+.wallet-terms-modal .terms-content ol {
+  color: rgba(255, 255, 255, 0.85);
+  padding-right: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.wallet-terms-modal .terms-content ol li {
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
+}
+
+.wallet-terms-modal .terms-content .terms-final {
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.1) 0%, rgba(0, 100, 200, 0.05) 100%);
+  border: 1px solid rgba(0, 200, 255, 0.2);
+  border-radius: 10px;
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.wallet-terms-modal .terms-content .terms-final strong {
+  color: #00c8ff;
+}
+
+.wallet-terms-modal .terms-accept-btn {
+  margin: var(--spacing-lg);
+  padding: 14px 28px;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  border-radius: 12px;
+  width: calc(100% - calc(var(--spacing-lg) * 2));
 }
