@@ -10,7 +10,7 @@ import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
     Download, FileArchive, Printer, Upload, Eye, Settings, Check, List,
-    ArrowUpDown, ArrowUp, ArrowDown, Search, Phone, XCircle
+    ArrowUpDown, ArrowUp, ArrowDown, Search, Phone, XCircle, Copy, CheckCircle
 } from 'lucide-react';
 
 /**
@@ -53,6 +53,10 @@ const StoreManagement = () => {
     const [activatedSort, setActivatedSort] = useState('newest');
     const [activatedSearch, setActivatedSearch] = useState('');
 
+    // Action notification modal state
+    const [actionNotificationModal, setActionNotificationModal] = useState({ show: false, card: null, action: '' });
+    const [actionLoading, setActionLoading] = useState(false);
+
     // Server-side pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -93,7 +97,6 @@ const StoreManagement = () => {
     // Card Back count for print sheet (defaults to generated cards count)
     const [cardBackCount, setCardBackCount] = useState('');
 
-    const [actionLoading, setActionLoading] = useState(false);
     const [exportProgress, setExportProgress] = useState(null);
 
     // Helper function to format large numbers (1000 -> 1k, 1000000 -> 1M)
@@ -647,12 +650,8 @@ const StoreManagement = () => {
         }
     }, [showActivatedModal, activatedPage, activatedSort]);
 
-    // Deactivate card handler
+    // Deactivate card handler - Confirmation handled by Action Notification Modal
     const handleDeactivateCard = async (cardId) => {
-        if (!window.confirm('Are you sure you want to deactivate this card? The phone number will be removed.')) {
-            return;
-        }
-
         try {
             await deactivateCard(cardId);
             loadActivatedCards(activatedPage); // Reload list
@@ -865,7 +864,7 @@ const StoreManagement = () => {
             {showActivatedModal && (
                 <div className="modal-overlay" style={{ zIndex: 1100 }}>
                     <div className="modal-content" style={{
-                        maxWidth: '900px',
+                        maxWidth: '1000px',
                         maxHeight: '85vh',
                         background: 'var(--color-bg-primary)',
                         border: '1px solid var(--border-color)',
@@ -966,12 +965,13 @@ const StoreManagement = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Account Info</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Store</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Password</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Date</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -985,24 +985,36 @@ const StoreManagement = () => {
                                         activatedCards.map((card) => (
                                             <tr key={card.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
-                                                    {card.email}
+                                                    <div style={{ fontWeight: 500 }}>{card.email}</div>
                                                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{card.firstName} {card.lastName}</div>
+                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {card.birthday}</div>}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.storeName}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.phone}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-accent-purple)' }}>{card.password || '***'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
                                                     {new Date(card.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right' }}>
-                                                    <button
-                                                        onClick={() => handleDeactivateCard(card.id)}
-                                                        className="btn btn-ghost"
-                                                        title="Deactivate and Clear Phone"
-                                                        style={{ color: 'var(--color-accent-red)', padding: '4px' }}
-                                                    >
-                                                        <XCircle size={16} />
-                                                    </button>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={() => setActionNotificationModal({ show: true, card, action: 'deactivate' })}
+                                                            className="btn btn-ghost"
+                                                            title="Deactivate Card"
+                                                            style={{ color: 'var(--color-accent-red)', padding: '4px' }}
+                                                        >
+                                                            <XCircle size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigator.clipboard.writeText(`Email: ${card.email}\nPassword: ${card.password || ''}\nName: ${card.firstName} ${card.lastName}\nPhone: ${card.phone}`)}
+                                                            className="btn btn-ghost"
+                                                            title="Copy Card Info"
+                                                            style={{ color: 'var(--color-accent-blue)', padding: '4px' }}
+                                                        >
+                                                            <Copy size={16} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1025,6 +1037,75 @@ const StoreManagement = () => {
                 </div>
             )}
 
+
+            {/* Action Notification Modal */}
+            {actionNotificationModal.show && (
+                <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => !actionLoading && setActionNotificationModal({ show: false, card: null, action: '' })}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-header">
+                            <h3 style={{ margin: 0, color: 'var(--color-accent-red)' }}>
+                                <AlertCircle size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                                Confirm Deactivation
+                            </h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => setActionNotificationModal({ show: false, card: null, action: '' })}
+                                disabled={actionLoading}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ padding: 'var(--spacing-md)' }}>
+                            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Are you sure you want to deactivate this card? This will clear the phone number and make the card available for another customer.
+                            </p>
+                            <div style={{
+                                background: 'var(--color-bg-secondary)',
+                                padding: 'var(--spacing-md)',
+                                borderRadius: '8px',
+                                marginBottom: 'var(--spacing-md)'
+                            }}>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>Card Info:</div>
+                                <div style={{ fontWeight: 500 }}>{actionNotificationModal.card?.email}</div>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                    {actionNotificationModal.card?.firstName} {actionNotificationModal.card?.lastName}
+                                </div>
+                                <div style={{ fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-text-tertiary)' }}>
+                                    Phone: {actionNotificationModal.card?.phone}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={() => setActionNotificationModal({ show: false, card: null, action: '' })}
+                                    disabled={actionLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-accent-red"
+                                    onClick={async () => {
+                                        setActionLoading(true);
+                                        try {
+                                            await handleDeactivateCard(actionNotificationModal.card.id);
+                                            setActionNotificationModal({ show: false, card: null, action: '' });
+                                        } finally {
+                                            setActionLoading(false);
+                                        }
+                                    }}
+                                    disabled={actionLoading}
+                                    style={{
+                                        background: 'var(--color-accent-red)',
+                                        color: '#fff'
+                                    }}
+                                >
+                                    {actionLoading ? 'Deactivating...' : 'Deactivate'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="section-header">
                 <h2>Store Management</h2>

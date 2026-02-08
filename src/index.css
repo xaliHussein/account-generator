@@ -1972,7 +1972,7 @@ a:hover {
 
 .view-account-value .copy-hint {
   position: absolute;
-  right: var(--spacing-md);
+  left: var(--spacing-md);
   top: 50%;
   transform: translateY(-50%);
   font-size: var(--font-size-xs);
@@ -3360,6 +3360,16 @@ a:hover {
   background: #f0f0f0;
 }
 
+.wallet-card-branding-2 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding-left: 7px;
+}
+
 .wallet-card-branding {
   flex: 1;
   display: flex;
@@ -3394,6 +3404,11 @@ a:hover {
   font-size: 14px;
   max-width: 140px;
   color: rgba(255, 255, 255, 0.8);
+}
+
+.wallet-card-serial-2 {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .wallet-card-serial {
@@ -4383,4 +4398,197 @@ a:hover {
   font-weight: 600;
   border-radius: 12px;
   width: calc(100% - calc(var(--spacing-lg) * 2));
+}
+
+/* ========================================
+   ACCOUNT INFO CARD MODAL
+   ======================================== */
+
+.wallet-account-info-modal {
+  background: linear-gradient(180deg, #0a1628 0%, #0f2340 100%);
+  border-radius: 20px;
+  max-width: 400px;
+  width: 90%;
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 200, 255, 0.15);
+  animation: modalSlideIn 0.3s ease-out;
+  padding: var(--spacing-lg);
+}
+
+.account-info-header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.account-info-header h3 {
+  color: #fff;
+  font-size: 1.2rem;
+  margin-top: var(--spacing-sm);
+}
+
+.account-info-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  background: rgba(0, 200, 255, 0.1);
+  border: 1px solid rgba(0, 200, 255, 0.2);
+  border-radius: 10px;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.account-info-notice svg {
+  color: #00c8ff;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.account-info-notice p {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.whatsapp-contact {
+  margin-bottom: var(--spacing-lg);
+}
+
+.whatsapp-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  background: #25D366;
+  color: #fff !important;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.whatsapp-link:hover {
+  background: #22c55e;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+}
+
+.account-card-preview {
+  margin-bottom: var(--spacing-lg);
+}
+
+.preview-title {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-sm);
+  text-align: center;
+}
+
+.preview-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 200, 255, 0.2);
+  border-radius: 12px;
+  padding: var(--spacing-md);
+}
+
+.preview-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.preview-field:last-of-type {
+  border-bottom: none;
+}
+
+.preview-field svg {
+  color: #00c8ff;
+  flex-shrink: 0;
+}
+
+.preview-field .label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--font-size-sm);
+  min-width: 80px;
+}
+
+.preview-field .value {
+  color: #fff;
+  font-size: var(--font-size-sm);
+  flex: 1;
+  text-align: left;
+  direction: ltr;
+}
+
+.preview-serial {
+  text-align: center;
+  color: rgba(0, 200, 255, 0.8);
+  font-size: var(--font-size-xs);
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px dashed rgba(0, 200, 255, 0.2);
+}
+
+.account-info-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.account-info-actions .btn {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* Success Screen */
+.account-info-success {
+  text-align: center;
+  padding: var(--spacing-lg) 0;
+}
+
+.account-info-success .success-icon {
+  margin-bottom: var(--spacing-lg);
+}
+
+.account-info-success h3 {
+  color: #00c853;
+  font-size: 1.3rem;
+  margin-bottom: var(--spacing-md);
+}
+
+.account-info-success p {
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Primary Accent Button for locked cards */
+.btn-wallet-primary-accent {
+  background: linear-gradient(135deg, #00c8ff 0%, #0088cc 100%);
+  color: #fff;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 200, 255, 0.35);
+}
+
+.btn-wallet-primary-accent:hover {
+  background: linear-gradient(135deg, #00daff 0%, #009de6 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 200, 255, 0.45);
+}
+
+.btn-wallet-primary-accent h5 {
+  margin: 0;
+  font-size: var(--font-size-sm);
 }

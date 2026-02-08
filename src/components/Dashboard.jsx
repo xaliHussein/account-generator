@@ -37,6 +37,11 @@ const Dashboard = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
 
+    // Activity pagination state
+    const [activityPage, setActivityPage] = useState(1);
+    const [activityTotalPages, setActivityTotalPages] = useState(1);
+    const ACTIVITY_PER_PAGE = 10;
+
     // Navigation handler based on card type
     const handleNavigateToStores = () => {
         navigate(cardType === 'wallet' ? '/sys-admin/wallet-stores' : '/sys-admin/stores');
@@ -47,13 +52,14 @@ const Dashboard = () => {
         setCardType(type);
         setLoading(true);
         setCurrentPage(1);
+        setActivityPage(1);
         setStoreSearchQuery('');
         setStoreSortOrder('desc');
     };
 
     useEffect(() => {
         loadDashboardData(currentPage);
-    }, [cardType, currentPage, storeSortOrder]); // Reload when sort changes
+    }, [cardType, currentPage, storeSortOrder, activityPage]); // Reload when sort or activity page changes
 
     // Debounce store search
     useEffect(() => {
@@ -81,7 +87,7 @@ const Dashboard = () => {
                 const [statsData, storesData, activityData] = await Promise.all([
                     getDashboardStats(),
                     getDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
-                    getRecentActivity(),
+                    getRecentActivity(activityPage, ACTIVITY_PER_PAGE),
                 ]);
                 setStats(statsData);
 
@@ -97,11 +103,15 @@ const Dashboard = () => {
                 }
 
                 setRecentActivity(activityData);
+                // Set activity pagination from paginated recent_scans
+                if (activityData?.recent_scans?.last_page) {
+                    setActivityTotalPages(activityData.recent_scans.last_page);
+                }
             } else {
                 const [statsData, storesData, activityData] = await Promise.all([
                     getWalletDashboardStats(),
                     getWalletDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
-                    getWalletRecentScans(),
+                    getWalletRecentScans(activityPage, ACTIVITY_PER_PAGE),
                 ]);
                 setStats(statsData);
 
@@ -117,6 +127,10 @@ const Dashboard = () => {
                 }
 
                 setRecentActivity(activityData);
+                // Set activity pagination from paginated recent_scans
+                if (activityData?.recent_scans?.last_page) {
+                    setActivityTotalPages(activityData.recent_scans.last_page);
+                }
             }
         } catch (err) {
             console.error('Failed to load dashboard data:', err);
@@ -332,7 +346,7 @@ const Dashboard = () => {
                 <div className="section-header">
                     <h3>
                         {cardType === 'regular' ? (
-                            <><Mail size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Email Search</>
+                            <><Search size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Card Search</>
                         ) : (
                             <><Phone size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Phone Search</>
                         )}
@@ -356,7 +370,7 @@ const Dashboard = () => {
                             <input
                                 type="text"
                                 placeholder={cardType === 'regular'
-                                    ? "Search for emails... (min 2 characters)"
+                                    ? "Search by email, phone, or serial number... (min 2 characters)"
                                     : "Search by phone number... (min 2 characters)"}
                                 value={searchQuery}
                                 onChange={(e) => handleSearch(e.target.value)}
@@ -665,7 +679,7 @@ const Dashboard = () => {
                 )}
             </div>
 
-            {/* Recent Activity - Now shows for both card types */}
+            {/* Recent Activity - Now shows for both card types with pagination */}
             <div className="dashboard-section">
                 <div className="section-header">
                     <h3>
@@ -673,35 +687,78 @@ const Dashboard = () => {
                     </h3>
                 </div>
 
-                {recentActivity?.recent_scans?.length === 0 ? (
-                    <div className="empty-state small">
-                        <Activity size={32} />
-                        <p>
-                            {cardType === 'regular' ? 'No scans yet' : 'No locked cards yet'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="activity-list">
-                        {recentActivity?.recent_scans?.map((scan) => (
-                            <div key={scan.id} className="activity-item">
-                                <div className="activity-icon">
-                                    {cardType === 'wallet' ? <Lock size={16} /> : <Users size={16} />}
-                                </div>
-                                <div className="activity-content">
-                                    <div className="activity-title">
-                                        {scan.first_name} {scan.last_name}
+                {/* Get data from paginated response */}
+                {(() => {
+                    const scansData = recentActivity?.recent_scans?.data || recentActivity?.recent_scans || [];
+                    const isEmpty = !scansData || scansData.length === 0;
+
+                    return isEmpty ? (
+                        <div className="empty-state small">
+                            <Activity size={32} />
+                            <p>
+                                {cardType === 'regular' ? 'No scans yet' : 'No locked cards yet'}
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="activity-list">
+                                {scansData.map((scan) => (
+                                    <div key={scan.id} className="activity-item">
+                                        <div className="activity-icon">
+                                            {cardType === 'wallet' ? <Lock size={16} /> : <Users size={16} />}
+                                        </div>
+                                        <div className="activity-content">
+                                            <div className="activity-title">
+                                                {scan.first_name} {scan.last_name}
+                                            </div>
+                                            <div className="activity-detail">
+                                                Phone: {scan.phone_number} • {cardType === 'wallet' ? 'Serial' : 'Store'}: {cardType === 'wallet' ? scan.serial_number : (scan.store?.name || 'Unknown')}
+                                            </div>
+                                        </div>
+                                        <div className="activity-time">
+                                            {new Date(scan.locked_at || scan.scanned_at).toLocaleDateString()}
+                                        </div>
                                     </div>
-                                    <div className="activity-detail">
-                                        Phone: {scan.phone_number} • {cardType === 'wallet' ? 'Serial' : 'Store'}: {cardType === 'wallet' ? scan.serial_number : (scan.store?.name || 'Unknown')}
-                                    </div>
-                                </div>
-                                <div className="activity-time">
-                                    {new Date(scan.locked_at || scan.scanned_at).toLocaleDateString()}
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
+
+                            {/* Activity Pagination Controls */}
+                            {activityTotalPages > 1 && (
+                                <div className="pagination-controls" style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginTop: 'var(--spacing-md)',
+                                    padding: 'var(--spacing-sm)',
+                                    background: 'var(--color-bg-secondary)',
+                                    borderRadius: 'var(--border-radius-md)'
+                                }}>
+                                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                        Page {activityPage} of {activityTotalPages}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => setActivityPage(prev => Math.max(1, prev - 1))}
+                                            disabled={activityPage === 1 || loading}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 12px', fontSize: 'var(--font-size-sm)' }}
+                                        >
+                                            Previous
+                                        </button>
+                                        <button
+                                            onClick={() => setActivityPage(prev => Math.min(activityTotalPages, prev + 1))}
+                                            disabled={activityPage === activityTotalPages || loading}
+                                            className="btn btn-secondary"
+                                            style={{ padding: '4px 12px', fontSize: 'var(--font-size-sm)' }}
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
             </div>
         </div>
     );

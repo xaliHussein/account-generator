@@ -94,10 +94,12 @@ export const getDashboardStores = async (page = 1, perPage = 10, search = '', so
 };
 
 /**
- * Get recent activity
+ * Get recent activity with optional pagination
  */
-export const getRecentActivity = async () => {
-    const response = await api.get('/api/dashboard/activity');
+export const getRecentActivity = async (page = 1, perPage = 10) => {
+    const response = await api.get('/api/dashboard/activity', {
+        params: { page, per_page: perPage }
+    });
     return response.data;
 };
 
@@ -305,8 +307,8 @@ export const transferSystemCards = async (cardIds, storeId) => {
  * Get activated cards (cards with phone numbers)
  */
 export const getActivatedCards = async (page = 1, perPage = 12, sort = 'newest', search = '') => {
-    const response = await api.get('/api/cards/activated', { 
-        params: { page, per_page: perPage, sort, search } 
+    const response = await api.get('/api/activated-cards', {
+        params: { page, per_page: perPage, sort, search }
     });
     return response.data;
 };
@@ -315,7 +317,7 @@ export const getActivatedCards = async (page = 1, perPage = 12, sort = 'newest',
  * Deactivate a card (clear phone number)
  */
 export const deactivateCard = async (cardId) => {
-    const response = await api.post(`/api/cards/${cardId}/deactivate`);
+    const response = await api.post(`/api/activated-cards/${cardId}/deactivate`);
     return response.data;
 };
 

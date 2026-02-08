@@ -180,10 +180,12 @@ export const searchWalletPhone = async (query) => {
 };
 
 /**
- * Get recent wallet card scans/locks
+ * Get recent wallet card scans/locks with optional pagination
  */
-export const getWalletRecentScans = async () => {
-    const response = await api.get('/api/wallet-dashboard/recent-activity');
+export const getWalletRecentScans = async (page = 1, perPage = 10) => {
+    const response = await api.get('/api/wallet-dashboard/recent-activity', {
+        params: { page, per_page: perPage }
+    });
     return response.data;
 };
 
@@ -193,8 +195,8 @@ export const getWalletRecentScans = async () => {
  * Get activated wallet cards (cards with phone numbers collected)
  */
 export const getActivatedWalletCards = async (page = 1, perPage = 12, sort = 'newest', search = '') => {
-    const response = await api.get('/api/wallet-cards/activated', { 
-        params: { page, per_page: perPage, sort, search } 
+    const response = await api.get('/api/activated-wallet-cards', {
+        params: { page, per_page: perPage, sort, search }
     });
     return response.data;
 };
@@ -203,6 +205,70 @@ export const getActivatedWalletCards = async (page = 1, perPage = 12, sort = 'ne
  * Deactivate a wallet card (clear phone number)
  */
 export const deactivateWalletCard = async (cardId) => {
-    const response = await api.post(`/api/wallet-cards/${cardId}/deactivate`);
+    const response = await api.post(`/api/activated-wallet-cards/${cardId}/deactivate`);
+    return response.data;
+};
+
+// ============================
+// CARD REQUESTS API
+// ============================
+
+/**
+ * Submit a card request from public wallet card view
+ */
+export const submitCardRequest = async (walletCardId) => {
+    const response = await api.post('/api/card-requests', {
+        wallet_card_id: walletCardId
+    });
+    return response.data;
+};
+
+/**
+ * Check if a request already exists for a wallet card (public)
+ */
+export const checkExistingRequest = async (walletCardId) => {
+    try {
+        const response = await api.get(`/api/card-requests/check/${walletCardId}`);
+        return response.data;
+    } catch (err) {
+        return { exists: false };
+    }
+};
+
+/**
+ * Get all card requests with pagination and filters (admin)
+ */
+export const getCardRequests = async (params = {}) => {
+    const { page = 1, per_page = 15, status = '', search = '' } = params;
+    const response = await api.get('/api/card-requests', {
+        params: { page, per_page, status, search }
+    });
+    return response.data;
+};
+
+/**
+ * Get pending card requests count (admin)
+ */
+export const getCardRequestsPendingCount = async () => {
+    const response = await api.get('/api/card-requests/pending-count');
+    return response.data;
+};
+
+/**
+ * Update card request status (admin)
+ */
+export const updateCardRequestStatus = async (requestId, status, notes = null) => {
+    const response = await api.patch(`/api/card-requests/${requestId}/status`, {
+        status,
+        notes
+    });
+    return response.data;
+};
+
+/**
+ * Delete a card request (admin)
+ */
+export const deleteCardRequest = async (requestId) => {
+    const response = await api.delete(`/api/card-requests/${requestId}`);
     return response.data;
 };

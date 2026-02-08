@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     getWalletStores, createWalletStore, updateWalletStore, deleteWalletStore,
     generateWalletCards, getWalletStoreCards, getWalletBatchCards,
-    getActivatedWalletCards, deactivateWalletCard
+    getActivatedWalletCards, deactivateWalletCard,
+    getCardRequests, updateCardRequestStatus, deleteCardRequest
 } from '../services/walletApi';
 import {
     downloadWalletPrintSheetPDF,
@@ -15,12 +16,13 @@ import {
     downloadWalletCardBacksImagesZip
 } from '../services/walletZipExporter';
 import WalletCard from './WalletCard';
+import WalletCardPrint from './WalletCardPrint';
 import WalletCardBack from './WalletCardBack';
 import Card from './ui/Card';
 import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
-    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search, Phone, XCircle
+    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search, Phone, XCircle, Copy, CheckCircle, FileText
 } from 'lucide-react';
 
 /**
@@ -71,6 +73,22 @@ const WalletStoreManagement = () => {
     const [activatedSort, setActivatedSort] = useState('newest');
     const [activatedSearch, setActivatedSearch] = useState('');
 
+    // Action notification modal state
+    const [actionNotificationModal, setActionNotificationModal] = useState({ show: false, card: null, action: '' });
+    const [actionLoading, setActionLoading] = useState(false);
+
+    // Customer requests modal state
+    const [showCustomerRequestsModal, setShowCustomerRequestsModal] = useState(false);
+    const [customerRequests, setCustomerRequests] = useState([]);
+    const [customerRequestsLoading, setCustomerRequestsLoading] = useState(false);
+    const [customerRequestsPage, setCustomerRequestsPage] = useState(1);
+    const [customerRequestsTotalPages, setCustomerRequestsTotalPages] = useState(1);
+    const [customerRequestsStatusFilter, setCustomerRequestsStatusFilter] = useState('pending');
+
+    // Delete confirmation modal state
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [requestToDelete, setRequestToDelete] = useState(null);
+
     const BATCH_ACCOUNTS_PER_PAGE = 20;
 
     // Server-side pagination state
@@ -101,7 +119,6 @@ const WalletStoreManagement = () => {
     const [customLogo, setCustomLogo] = useState(null);
     const [cardBackLogo, setCardBackLogo] = useState(null);
 
-    const [actionLoading, setActionLoading] = useState(false);
     const [exportProgress, setExportProgress] = useState(null);
 
     // Helper function to format large numbers
@@ -210,6 +227,165 @@ const WalletStoreManagement = () => {
             setError(err.response?.data?.message || 'Failed to delete wallet store');
         } finally {
             setActionLoading(false);
+        }
+    };
+
+    // Load customer card requests
+    const loadCustomerRequests = async (page = 1, status = customerRequestsStatusFilter) => {
+        setCustomerRequestsLoading(true);
+        try {
+            const response = await getCardRequests({ page, per_page: 15, status });
+            setCustomerRequests(response.data || []);
+            setCustomerRequestsTotalPages(response.last_page || 1);
+            setCustomerRequestsPage(page);
+        } catch (err) {
+            console.error('Failed to load customer requests:', err);
+        } finally {
+            setCustomerRequestsLoading(false);
+        }
+    };
+
+    // Handle update request status
+    const handleUpdateRequestStatus = async (requestId, newStatus) => {
+        try {
+            await updateCardRequestStatus(requestId, newStatus);
+            await loadCustomerRequests(customerRequestsPage, customerRequestsStatusFilter);
+        } catch (err) {
+            console.error('Failed to update request status:', err);
+        }
+    };
+
+    // Handle delete request click
+    const handleDeleteRequest = (request) => {
+        setRequestToDelete(request);
+        setShowDeleteConfirm(true);
+    };
+
+    // Confirm delete request
+    const confirmDelete = async () => {
+        if (!requestToDelete) return;
+
+        setActionLoading(true);
+        try {
+            await deleteCardRequest(requestToDelete.id);
+            await loadCustomerRequests(customerRequestsPage, customerRequestsStatusFilter);
+            setShowDeleteConfirm(false);
+            setRequestToDelete(null);
+        } catch (err) {
+            console.error('Failed to delete request:', err);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Handle print request as PDF - uses WalletCardPrint React component
+    const handlePrintRequestPDF = async (request) => {
+        if (!request.card_data) return;
+
+        const serialNumber = request.serial_number || request.card_data.serialNumber || 'N/A';
+
+        // Build card object for WalletCardPrint component
+        const cardData = {
+            first_name: request.card_data.firstName,
+            last_name: request.card_data.lastName,
+            email: request.card_data.email,
+            password: request.card_data.password,
+            birthday: request.card_data.birthday,
+            serial_number: serialNumber,
+            email_type: request.card_data.emailType,
+            access_token: request.wallet_card?.access_token || 'demo'
+        };
+
+        // Create container and render React component
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+
+        try {
+            const { createRoot } = await import('react-dom/client');
+            const root = createRoot(container);
+
+            // Render the WalletCardPrint component
+            root.render(React.createElement(WalletCardPrint, { card: cardData, showQR: true }));
+
+            // Wait for component to render
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            const { default: html2canvas } = await import('html2canvas');
+            const { jsPDF } = await import('jspdf');
+
+            const cardElement = container.querySelector('.wallet-card-front');
+            if (!cardElement) {
+                throw new Error('Card element not found');
+            }
+
+            const canvas = await html2canvas(cardElement, { scale: 2, backgroundColor: null });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('l', 'mm', [100, 63]);
+            pdf.addImage(imgData, 'PNG', 0, 0, 100, 63);
+            pdf.save(`wallet_card_${serialNumber}.pdf`);
+
+            root.unmount();
+        } catch (err) {
+            console.error('Failed to generate PDF:', err);
+        } finally {
+            document.body.removeChild(container);
+        }
+    };
+
+    // Handle print request as image - uses WalletCardPrint React component
+    const handlePrintRequestImage = async (request) => {
+        if (!request.card_data) return;
+
+        const serialNumber = request.serial_number || request.card_data.serialNumber || 'N/A';
+
+        // Build card object for WalletCardPrint component
+        const cardData = {
+            first_name: request.card_data.firstName,
+            last_name: request.card_data.lastName,
+            email: request.card_data.email,
+            password: request.card_data.password,
+            birthday: request.card_data.birthday,
+            serial_number: serialNumber,
+            email_type: request.card_data.emailType,
+            access_token: request.wallet_card?.access_token || 'demo'
+        };
+
+        // Create container and render React component
+        const container = document.createElement('div');
+        container.style.position = 'absolute';
+        container.style.left = '-9999px';
+        document.body.appendChild(container);
+
+        try {
+            const { createRoot } = await import('react-dom/client');
+            const root = createRoot(container);
+
+            // Render the WalletCardPrint component
+            root.render(React.createElement(WalletCardPrint, { card: cardData, showQR: true }));
+
+            // Wait for component to render
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            const { default: html2canvas } = await import('html2canvas');
+
+            const cardElement = container.querySelector('.wallet-card-front');
+            if (!cardElement) {
+                throw new Error('Card element not found');
+            }
+
+            const canvas = await html2canvas(cardElement, { scale: 2, backgroundColor: null });
+            const link = document.createElement('a');
+            link.download = `wallet_card_${serialNumber}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            root.unmount();
+        } catch (err) {
+            console.error('Failed to generate image:', err);
+        } finally {
+            document.body.removeChild(container);
         }
     };
 
@@ -706,12 +882,8 @@ const WalletStoreManagement = () => {
         }
     }, [showActivatedModal, activatedPage, activatedSort]);
 
-    // Deactivate card handler
+    // Deactivate card handler - Confirmation handled by Action Notification Modal
     const handleDeactivateCard = async (cardId) => {
-        if (!window.confirm('Are you sure you want to deactivate this wallet card? The phone number will be removed.')) {
-            return;
-        }
-
         try {
             await deactivateWalletCard(cardId);
             loadActivatedCards(activatedPage); // Reload list
@@ -886,7 +1058,7 @@ const WalletStoreManagement = () => {
             {showActivatedModal && (
                 <div className="modal-overlay" style={{ zIndex: 1100 }}>
                     <div className="modal-content" style={{
-                        maxWidth: '900px',
+                        maxWidth: '1000px',
                         maxHeight: '85vh',
                         background: 'var(--color-bg-primary)',
                         border: '1px solid var(--border-color)',
@@ -987,12 +1159,13 @@ const WalletStoreManagement = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead style={{ zIndex: 1 }}>
                                     <tr style={{ background: 'var(--color-bg-secondary)', position: 'sticky', top: 0 }}>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Email</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Account Info</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Store</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Phone</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Password</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Serial</th>
                                         <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>Date</th>
-                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
+                                        <th style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center', borderBottom: '1px solid var(--border-color)' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1006,24 +1179,36 @@ const WalletStoreManagement = () => {
                                         activatedCards.map((card) => (
                                             <tr key={card.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
-                                                    {card.email}
+                                                    <div style={{ fontWeight: 500 }}>{card.email}</div>
                                                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{card.firstName} {card.lastName}</div>
+                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {new Date(card.birthday).toLocaleDateString()}</div>}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.storeName}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.phone}</td>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-accent-purple)' }}>{card.password || '***'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
                                                     {new Date(card.created_at).toLocaleDateString()}
                                                 </td>
-                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'right' }}>
-                                                    <button
-                                                        onClick={() => handleDeactivateCard(card.id)}
-                                                        className="btn btn-ghost"
-                                                        title="Deactivate and Clear Phone"
-                                                        style={{ color: 'var(--color-accent-red)', padding: '4px' }}
-                                                    >
-                                                        <XCircle size={16} />
-                                                    </button>
+                                                <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={() => setActionNotificationModal({ show: true, card, action: 'deactivate' })}
+                                                            className="btn btn-ghost"
+                                                            title="Deactivate Card"
+                                                            style={{ color: 'var(--color-accent-red)', padding: '4px' }}
+                                                        >
+                                                            <XCircle size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigator.clipboard.writeText(`Email: ${card.email}\nPassword: ${card.password || ''}\nName: ${card.firstName} ${card.lastName}\nPhone: ${card.phone}`)}
+                                                            className="btn btn-ghost"
+                                                            title="Copy Card Info"
+                                                            style={{ color: 'var(--color-accent-blue)', padding: '4px' }}
+                                                        >
+                                                            <Copy size={16} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1046,6 +1231,314 @@ const WalletStoreManagement = () => {
                 </div>
             )}
 
+
+            {/* Action Notification Modal */}
+            {actionNotificationModal.show && (
+                <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => !actionLoading && setActionNotificationModal({ show: false, card: null, action: '' })}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-header">
+                            <h3 style={{ margin: 0, color: 'var(--color-accent-red)' }}>
+                                <AlertCircle size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                                Confirm Deactivation
+                            </h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => setActionNotificationModal({ show: false, card: null, action: '' })}
+                                disabled={actionLoading}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ padding: 'var(--spacing-md)' }}>
+                            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Are you sure you want to deactivate this wallet card? This will clear the phone number and unlock the card.
+                            </p>
+                            <div style={{
+                                background: 'var(--color-bg-secondary)',
+                                padding: 'var(--spacing-md)',
+                                borderRadius: '8px',
+                                marginBottom: 'var(--spacing-md)'
+                            }}>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>Card Info:</div>
+                                <div style={{ fontWeight: 500 }}>{actionNotificationModal.card?.email}</div>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                                    {actionNotificationModal.card?.firstName} {actionNotificationModal.card?.lastName}
+                                </div>
+                                <div style={{ fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-text-tertiary)' }}>
+                                    Phone: {actionNotificationModal.card?.phone}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={() => setActionNotificationModal({ show: false, card: null, action: '' })}
+                                    disabled={actionLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-accent-red"
+                                    onClick={async () => {
+                                        setActionLoading(true);
+                                        try {
+                                            await handleDeactivateCard(actionNotificationModal.card.id);
+                                            setActionNotificationModal({ show: false, card: null, action: '' });
+                                        } finally {
+                                            setActionLoading(false);
+                                        }
+                                    }}
+                                    disabled={actionLoading}
+                                    style={{
+                                        background: 'var(--color-accent-red)',
+                                        color: '#fff'
+                                    }}
+                                >
+                                    {actionLoading ? 'Deactivating...' : 'Deactivate'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Customer Requests Modal */}
+            {showCustomerRequestsModal && (
+                <div className="modal-overlay" onClick={() => setShowCustomerRequestsModal(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1100px', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                        <div className="modal-header">
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <FileText size={20} />
+                                Customer Card Requests
+                            </h3>
+                            <button className="modal-close" onClick={() => setShowCustomerRequestsModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                {['pending', 'processing', 'completed', 'cancelled'].map(status => (
+                                    <button
+                                        key={status}
+                                        onClick={() => {
+                                            setCustomerRequestsStatusFilter(status);
+                                            loadCustomerRequests(1, status);
+                                        }}
+                                        className={`btn ${customerRequestsStatusFilter === status ? 'btn-primary' : 'btn-ghost'}`}
+                                        style={{ textTransform: 'capitalize', fontSize: 'var(--font-size-sm)' }}
+                                    >
+                                        {status}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+                            {customerRequestsLoading && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    background: 'rgba(var(--color-bg-primary-rgb, 255, 255, 255), 0.7)',
+                                    backdropFilter: 'blur(2px)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 10
+                                }}>
+                                    <div className="spinner"></div>
+                                </div>
+                            )}
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{
+                                        background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.15), rgba(0, 200, 255, 0.1))',
+                                        position: 'sticky',
+                                        top: 0
+                                    }}>
+                                        <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Customer Name</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Phone</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Email</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Date of Birth</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Order Date</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'center', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {customerRequests.length === 0 && !customerRequestsLoading ? (
+                                        <tr>
+                                            <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                                                <div style={{ color: 'var(--color-text-secondary)', fontSize: '15px' }}>
+                                                    <span style={{ fontSize: '32px', display: 'block', marginBottom: '10px' }}>📋</span>
+                                                    No {customerRequestsStatusFilter} requests found.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        customerRequests.map((request) => (
+                                            <tr key={request.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                                {/* Customer Name */}
+                                                <td style={{ padding: '16px 20px', fontWeight: 600, fontSize: '15px' }}>
+                                                    {request.customer_name}
+                                                </td>
+                                                {/* Phone */}
+                                                <td style={{ padding: '16px 20px', fontFamily: 'monospace', color: '#00c8ff', fontSize: '15px' }}>
+                                                    {request.phone_number}
+                                                </td>
+                                                {/* Email */}
+                                                <td style={{ padding: '16px 20px', fontSize: '14px', wordBreak: 'break-all', maxWidth: '200px' }}>
+                                                    {request.card_data?.email || 'N/A'}
+                                                </td>
+                                                {/* Date of Birth */}
+                                                <td style={{ padding: '16px 20px', fontSize: '15px' }} >
+
+                                                    {new Date(request.card_data?.birthday).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    }) || 'N/A'}
+                                                </td>
+                                                {/* Order Date */}
+                                                <td style={{ padding: '16px 20px', fontSize: '15px', color: 'var(--color-text-secondary)' }}>
+                                                    {new Date(request.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                                        {request.status === 'pending' && (
+                                                            <button
+                                                                onClick={() => handleUpdateRequestStatus(request.id, 'processing')}
+                                                                className="btn btn-ghost"
+                                                                title="Mark as Processing"
+                                                                style={{ color: 'var(--color-accent-blue)', padding: '4px', fontSize: 'var(--font-size-xs)' }}
+                                                            >
+                                                                Processing
+                                                            </button>
+                                                        )}
+                                                        {(request.status === 'pending' || request.status === 'processing') && (
+                                                            <button
+                                                                onClick={() => handleUpdateRequestStatus(request.id, 'completed')}
+                                                                className="btn btn-ghost"
+                                                                title="Mark as Completed"
+                                                                style={{ color: 'var(--color-accent-green)', padding: '4px', fontSize: 'var(--font-size-xs)' }}
+                                                            >
+                                                                <CheckCircle size={14} />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => request.card_data && navigator.clipboard.writeText(
+                                                                `Email: ${request.card_data.email}\nPassword: ${request.card_data.password}\nName: ${request.card_data.firstName} ${request.card_data.lastName}\nDOB: ${request.card_data.birthday || 'N/A'}`
+                                                            )}
+                                                            className="btn btn-ghost"
+                                                            title="Copy Card Info"
+                                                            style={{ color: 'var(--color-accent-blue)', padding: '4px' }}
+                                                            disabled={!request.card_data}
+                                                        >
+                                                            <Copy size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePrintRequestPDF(request)}
+                                                            className="btn btn-ghost"
+                                                            title="Download PDF"
+                                                            style={{ color: 'var(--color-accent-purple)', padding: '4px' }}
+                                                            disabled={!request.card_data}
+                                                        >
+                                                            <Download size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePrintRequestImage(request)}
+                                                            className="btn btn-ghost"
+                                                            title="Print Card Image"
+                                                            style={{ color: 'var(--color-accent-green)', padding: '4px' }}
+                                                            disabled={!request.card_data}
+                                                        >
+                                                            <Printer size={14} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteRequest(request)}
+                                                            className="btn btn-ghost"
+                                                            title="Delete Request"
+                                                            style={{ color: 'var(--color-accent-red)', padding: '4px' }}
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style={{ padding: 'var(--spacing-md)', borderTop: '1px solid var(--border-color)' }}>
+                            <Pagination
+                                currentPage={customerRequestsPage}
+                                totalPages={customerRequestsTotalPages}
+                                onPageChange={(page) => loadCustomerRequests(page, customerRequestsStatusFilter)}
+                                totalItems={-1}
+                                itemsPerPage={15}
+                            />
+                        </div>
+                    </div>
+                </div >
+            )}
+
+            {/* Delete Confirmation Modal for Customer Requests */}
+            {showDeleteConfirm && (
+                <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => !actionLoading && setShowDeleteConfirm(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-header">
+                            <h3 style={{ margin: 0, color: 'var(--color-accent-red)' }}>
+                                <AlertCircle size={20} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                                Confirm Deletion
+                            </h3>
+                            <button
+                                className="modal-close"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={actionLoading}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={{ padding: 'var(--spacing-md)' }}>
+                            <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
+                                Are you sure you want to delete this request?
+                            </p>
+                            <div style={{
+                                background: 'var(--color-bg-secondary)',
+                                padding: 'var(--spacing-md)',
+                                borderRadius: '8px',
+                                marginBottom: 'var(--spacing-md)'
+                            }}>
+                                <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-tertiary)', marginBottom: '4px' }}>Request Info:</div>
+                                <div style={{ fontWeight: 500 }}>{requestToDelete?.customer_name}</div>
+                                <div style={{ fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-text-secondary)' }}>
+                                    Phone: {requestToDelete?.phone_number || 'N/A'}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    disabled={actionLoading}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-accent-red"
+                                    onClick={confirmDelete}
+                                    disabled={actionLoading}
+                                    style={{
+                                        background: 'var(--color-accent-red)',
+                                        color: '#fff'
+                                    }}
+                                >
+                                    {actionLoading ? 'Deleting...' : 'Delete Request'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="section-header">
                 <h2>Wallet Cards</h2>
@@ -1104,6 +1597,29 @@ const WalletStoreManagement = () => {
                         className="btn btn-secondary-enhanced"
                     >
                         <Phone size={18} /> View Activated Cards
+                    </button>
+                    <button
+                        onClick={() => {
+                            setShowCustomerRequestsModal(true);
+                            loadCustomerRequests(1);
+                        }}
+                        className="btn"
+                        style={{
+                            background: 'linear-gradient(135deg, #9333ea, #7c3aed)',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 20px',
+                            borderRadius: '10px',
+                            fontWeight: '600',
+                            boxShadow: '0 4px 15px rgba(147, 51, 234, 0.35)',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        <FileText size={18} /> Customer Requests
                     </button>
                     <button
                         onClick={() => setShowCreateForm(true)}

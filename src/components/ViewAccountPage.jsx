@@ -121,11 +121,11 @@ const ViewAccountPage = () => {
 
     if (loading) {
         return (
-            <div className="view-account-page">
+            <div className="view-account-page" dir="rtl">
                 <div className="view-account-container">
                     <div className="view-account-loading">
                         <div className="spinner"></div>
-                        <p>Loading account data...</p>
+                        <p>جاري تحميل بيانات الحساب...</p>
                     </div>
                 </div>
             </div>
@@ -134,7 +134,7 @@ const ViewAccountPage = () => {
 
     if (error) {
         return (
-            <div className="view-account-page">
+            <div className="view-account-page" dir="rtl">
                 <div className="view-account-container error">
                     <div className="view-account-icon error">
                         <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" strokeWidth="2">
@@ -143,10 +143,10 @@ const ViewAccountPage = () => {
                             <line x1="9" y1="9" x2="15" y2="15" />
                         </svg>
                     </div>
-                    <h1>Error</h1>
+                    <h1>خطأ</h1>
                     <p>{error}</p>
                     <p style={{ fontSize: '0.85em', color: '#888', marginTop: '1rem' }}>
-                        Please contact support if this problem persists.
+                        يرجى الاتصال بالدعم إذا استمرت المشكلة.
                     </p>
                 </div>
             </div>
@@ -155,11 +155,11 @@ const ViewAccountPage = () => {
 
     if (!accountData) {
         return (
-            <div className="view-account-page">
+            <div className="view-account-page" dir="rtl">
                 <div className="view-account-container">
                     <div className="view-account-loading">
                         <div className="spinner"></div>
-                        <p>Loading account data...</p>
+                        <p>جاري تحميل بيانات الحساب...</p>
                     </div>
                 </div>
             </div>
@@ -170,18 +170,18 @@ const ViewAccountPage = () => {
     const themeColor = CARD_COLORS[accountData.color] || CARD_COLORS.blue;
 
     return (
-        <div className="view-account-page" style={{ '--theme-color': themeColor }}>
-            {/* Phone Collection Modal */}
+        <div className="view-account-page" dir="rtl" style={{ '--theme-color': themeColor }}>
+            {/* Phone Collection Modal - Arabic with Usage Policy */}
             {showPhoneModal && (
                 <div className="phone-modal-overlay" style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
-                    <div className="phone-modal">
+                    <div className="phone-modal" dir="rtl" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
                         <button
                             type="button"
                             onClick={() => setShowPhoneModal(false)}
                             style={{
                                 position: 'absolute',
                                 top: '12px',
-                                right: '12px',
+                                left: '12px',
                                 background: 'transparent',
                                 border: 'none',
                                 borderRadius: '50%',
@@ -201,24 +201,65 @@ const ViewAccountPage = () => {
                             ✕
                         </button>
                         <div className="phone-modal-header" style={{ background: themeColor }}>
-                            <h2>Welcome!</h2>
-                            <p>To activate your account, please enter your phone number</p>
+                            <h2>مرحباً!</h2>
+                            <p>لتفعيل حسابك، يرجى إدخال رقم هاتفك</p>
                         </div>
+
+                        {/* Usage Policy Section */}
+                        <div style={{
+                            background: 'rgba(0,0,0,0.05)',
+                            borderRadius: '12px',
+                            padding: '16px',
+                            margin: '16px',
+                            fontSize: '13px',
+                            lineHeight: '1.7',
+                            textAlign: 'right',
+                            color: '#333'
+                        }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '12px', color: themeColor, fontSize: '15px' }}>
+                                ⚠️ سياسة الاستخدام
+                            </div>
+                            <p style={{ marginBottom: '10px' }}>
+                                الكارت ينشأ يدوياً من هاتفك وليس حساب جاهز.
+                            </p>
+                            <p style={{ marginBottom: '10px' }}>
+                                يعمل الحساب على <strong style={{ color: themeColor }}>{isApple ? 'Apple Store' : 'Google Play'}</strong> و {isApple ? 'iCloud' : 'Google Services'} ويدعم الشراء من داخل التطبيق.
+                            </p>
+                            <p style={{ marginBottom: '10px' }}>
+                                سجل الحساب يدوياً في حال لم يعمل الباركود بعد مرور 3 أشهر.
+                            </p>
+                            <div style={{
+                                background: 'rgba(255,0,0,0.08)',
+                                border: '1px solid rgba(255,0,0,0.2)',
+                                borderRadius: '8px',
+                                padding: '12px',
+                                marginTop: '12px'
+                            }}>
+                                <div style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '6px' }}>
+                                    ⚖️ تنويه قانوني:
+                                </div>
+                                <p style={{ margin: 0, color: '#7f1d1d', fontSize: '12px' }}>
+                                    يلتزم المستخدم بإيقاف ميزة العثور على الهاتف وفي حال عدم الالتزام تخلي الشركة والوكيل كامل المسؤولية القانونية والضمانية عن أي أضرار قد تحدث للهاتف.
+                                </p>
+                            </div>
+                        </div>
+
                         <form onSubmit={handlePhoneSubmit} className="phone-modal-form">
                             {phoneError && (
-                                <div className="phone-error">
+                                <div className="phone-error" style={{ textAlign: 'right' }}>
                                     {phoneError}
                                 </div>
                             )}
                             <div className="phone-input-group">
-                                <label>Phone Number</label>
+                                <label style={{ textAlign: 'right', display: 'block' }}>رقم الهاتف</label>
                                 <input
                                     type="tel"
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
-                                    placeholder="+1234567890"
+                                    placeholder="مثال: 07xxxxxxxxx"
                                     autoFocus
                                     disabled={submittingPhone}
+                                    style={{ textAlign: 'left', direction: 'ltr' }}
                                 />
                             </div>
                             <button
@@ -227,7 +268,7 @@ const ViewAccountPage = () => {
                                 style={{ background: themeColor }}
                                 disabled={submittingPhone}
                             >
-                                {submittingPhone ? 'Saving...' : 'Continue'}
+                                {submittingPhone ? 'جاري الحفظ...' : 'متابعة'}
                             </button>
                         </form>
                     </div>
@@ -238,7 +279,7 @@ const ViewAccountPage = () => {
                 {/* Success message after phone submission */}
                 {phoneSubmitted && (
                     <div className="phone-success-banner" style={{ background: '#22c55e' }}>
-                        ✓ Account activated successfully!
+                        ✓ تم تفعيل الحساب بنجاح!
                     </div>
                 )}
 
@@ -257,8 +298,8 @@ const ViewAccountPage = () => {
                             </svg>
                         )}
                     </div>
-                    <h1 style={{ color: 'white' }}>{title}</h1>
-                    <p className="view-account-subtitle" style={{ color: 'rgba(255,255,255,0.8)' }}>USA Account Credentials</p>
+                    <h1 style={{ color: 'white' }}>{isApple ? 'حساب Apple ID' : 'حساب Google ID'}</h1>
+                    <p className="view-account-subtitle" style={{ color: 'rgba(255,255,255,0.8)' }}>بيانات الحساب الأمريكي</p>
                 </div>
 
                 {/* Verified Badge */}
@@ -271,7 +312,7 @@ const ViewAccountPage = () => {
                         fontSize: '0.75rem',
                         fontWeight: 600
                     }}>
-                        ✓ VERIFIED & SECURE
+                        ✓ موثق وآمن
                     </span>
                 </div>
 
@@ -280,27 +321,27 @@ const ViewAccountPage = () => {
                     {/* Name Section */}
                     <div className="view-account-section name-section">
                         <div className="view-account-name">{accountData.name}</div>
-                        <div className="view-account-badge" style={{ background: themeColor }}>VERIFIED</div>
+                        <div className="view-account-badge" style={{ background: themeColor }}>موثق</div>
                     </div>
 
                     {/* Personal Info */}
                     <div className="view-account-section">
                         <div className="view-account-field">
-                            <label>First Name</label>
-                            <div className="view-account-value">{accountData.firstName || accountData.name?.split(' ')[0] || 'N/A'}</div>
+                            <label>الاسم الأول</label>
+                            <div className="view-account-value">{accountData.firstName || accountData.name?.split(' ')[0] || 'غير متوفر'}</div>
                         </div>
 
                         <div className="view-account-field">
-                            <label>Last Name</label>
-                            <div className="view-account-value">{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'N/A'}</div>
+                            <label>اسم العائلة</label>
+                            <div className="view-account-value">{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'غير متوفر'}</div>
                         </div>
 
                         {accountData.phoneNumber && (
                             <div className="view-account-field">
-                                <label>Phone</label>
+                                <label>الهاتف</label>
                                 <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.phoneNumber)}>
                                     {accountData.phoneNumber}
-                                    <span className="copy-hint">Tap to copy</span>
+                                    <span className="copy-hint">اضغط للنسخ</span>
                                 </div>
                             </div>
                         )}
@@ -309,18 +350,18 @@ const ViewAccountPage = () => {
                     {/* Credentials */}
                     <div className="view-account-section">
                         <div className="view-account-field">
-                            <label>Email Address</label>
-                            <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.email)}>
+                            <label>البريد الإلكتروني</label>
+                            <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.email)} style={{ direction: 'rtl', textAlign: 'right' }}>
                                 {accountData.email}
-                                <span className="copy-hint">Tap to copy</span>
+                                <span className="copy-hint">اضغط للنسخ</span>
                             </div>
                         </div>
 
                         <div className="view-account-field">
-                            <label>Password</label>
-                            <div className="view-account-value copyable password" onClick={() => navigator.clipboard.writeText(accountData.pass)}>
+                            <label>كلمة المرور</label>
+                            <div className="view-account-value copyable password" onClick={() => navigator.clipboard.writeText(accountData.pass)} style={{ direction: 'rtl', textAlign: 'right' }}>
                                 {accountData.pass}
-                                <span className="copy-hint">Tap to copy</span>
+                                <span className="copy-hint">اضغط للنسخ</span>
                             </div>
                         </div>
                     </div>
@@ -328,19 +369,19 @@ const ViewAccountPage = () => {
                     {/* Additional Info */}
                     <div className="view-account-section">
                         <div className="view-account-field">
-                            <label>Date of Birth</label>
+                            <label>تاريخ الميلاد</label>
                             <div className="view-account-value">{accountData.dob}</div>
                         </div>
 
                         <div className="view-account-field">
-                            <label>Serial Number</label>
-                            <div className="view-account-value mono">{accountData.sn}</div>
+                            <label>الرقم التسلسلي</label>
+                            <div className="view-account-value mono" style={{ direction: 'rtl', textAlign: 'right' }}>{accountData.sn}</div>
                         </div>
 
                         {accountData.id && (
                             <div className="view-account-field">
-                                <label>Account ID</label>
-                                <div className="view-account-value mono small">{accountData.id}</div>
+                                <label>معرف الحساب</label>
+                                <div className="view-account-value mono small" style={{ direction: 'rtl', textAlign: 'right' }}>{accountData.id}</div>
                             </div>
                         )}
                     </div>
@@ -348,8 +389,8 @@ const ViewAccountPage = () => {
 
                 {/* Footer */}
                 <div className="view-account-footer">
-                    <p>🔒 This data is encrypted and tamper-proof.</p>
-                    <p>Keep this information secure. Do not share with others.</p>
+                    <p>🔒 هذه البيانات مشفرة ومحمية من التلاعب.</p>
+                    <p>حافظ على سرية هذه المعلومات ولا تشاركها مع الآخرين.</p>
                 </div>
             </div>
         </div>
