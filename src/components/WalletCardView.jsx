@@ -518,7 +518,7 @@ const WalletCardView = () => {
                                                     <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ fontWeight: 'bold' }}>{card.password}</span>
                                                 </div>
                                                 <div style={{ marginBottom: '2px' }}>
-                                                    <span style={{ color: '#00c8ff' }}>DOB:</span> {card.birthday || 'N/A'}
+                                                    <span style={{ color: '#00c8ff' }}>DOB:</span> {new Date(card.birthday).toLocaleDateString('en-CA') || 'N/A'}
                                                 </div>
                                                 <div className="wallet-card-serial-2" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '8px', marginTop: '4px' }}>
                                                     Serial No: {card.serial_number || 'N/A'}
@@ -958,7 +958,7 @@ const WalletCardView = () => {
 
                 {/* Print Date */}
                 <div className="wallet-print-date">
-                    تاريخ الطباعة: {card.printed_at ? new Date(card.printed_at).toLocaleDateString('ar-EG') : new Date().toLocaleDateString('ar-EG')}
+                    تاريخ الطباعة: {card.printed_at ? new Date(card.printed_at).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA')}
                 </div>
             </div>
         </div>

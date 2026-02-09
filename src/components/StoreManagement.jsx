@@ -833,7 +833,7 @@ const StoreManagement = () => {
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone || '—'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber || card.accountId || 'N/A'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-                                                    {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}
+                                                    {card.created_at ? new Date(card.created_at).toLocaleDateString('en-CA') : 'N/A'}
                                                 </td>
                                             </tr>
                                         ))}
@@ -987,14 +987,14 @@ const StoreManagement = () => {
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
                                                     <div style={{ fontWeight: 500 }}>{card.email}</div>
                                                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{card.firstName} {card.lastName}</div>
-                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {card.birthday}</div>}
+                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {`${card.birthday.year}/${card.birthday.month}/${card.birthday.day}`}</div>}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.storeName}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.phone}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-accent-purple)' }}>{card.password || '***'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-                                                    {new Date(card.created_at).toLocaleDateString()}
+                                                    {new Date(card.created_at).toLocaleDateString('en-CA')}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>

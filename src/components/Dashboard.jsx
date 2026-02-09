@@ -463,7 +463,7 @@ const Dashboard = () => {
                                         fontSize: 'var(--font-size-xs)',
                                         color: 'var(--color-text-tertiary)'
                                     }}>
-                                        {new Date(card.updated_at || card.created_at).toLocaleDateString()}
+                                        {new Date(card.updated_at || card.created_at).toLocaleDateString('en-CA')}
                                     </span>
                                 </div>
                             ))}
@@ -716,7 +716,7 @@ const Dashboard = () => {
                                             </div>
                                         </div>
                                         <div className="activity-time">
-                                            {new Date(scan.locked_at || scan.scanned_at).toLocaleDateString()}
+                                            {new Date(scan.locked_at || scan.scanned_at).toLocaleDateString('en-CA')}
                                         </div>
                                     </div>
                                 ))}
