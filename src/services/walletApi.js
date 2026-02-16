@@ -216,9 +216,10 @@ export const deactivateWalletCard = async (cardId) => {
 /**
  * Submit a card request from public wallet card view
  */
-export const submitCardRequest = async (walletCardId) => {
+export const submitCardRequest = async (walletCardId, cardDesign = 'classic') => {
     const response = await api.post('/api/card-requests', {
-        wallet_card_id: walletCardId
+        wallet_card_id: walletCardId,
+        card_design: cardDesign
     });
     return response.data;
 };

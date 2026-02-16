@@ -1000,9 +1000,9 @@ a:hover {
 
 /* Account Card Preview */
 .account-card-preview {
-  background: white;
+  /* background: white; */
   border-radius: var(--border-radius-xl);
-  padding: var(--spacing-xl);
+  margin-top: 50px;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-xl);
 }
@@ -3509,6 +3509,271 @@ a:hover {
 }
 
 /* ========================================
+   WALLET CARD LIGHT DESIGN (Off-White)
+   Elegant, ink-saving off-white cards
+   ======================================== */
+
+/* Wallet Card Front - Light */
+.wallet-card-front-light {
+  width: 320px;
+  height: 200px;
+  background: linear-gradient(145deg, #FAF8F5 0%, #F3EDE4 50%, #FAF8F5 100%);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  color: #2C2C2C;
+  font-family: var(--font-family);
+  border: 1.5px solid #D4C5A9;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Subtle decorative accent lines */
+.wallet-light-accent-line {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #D4C5A9 20%, #B8860B 50%, #D4C5A9 80%, transparent 100%);
+  opacity: 0.5;
+}
+
+.wallet-light-accent-top {
+  top: 12px;
+}
+
+.wallet-light-accent-bottom {
+  bottom: 12px;
+}
+
+.wallet-card-content-light {
+  display: flex;
+  height: 100%;
+  padding: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-card-qr-section-light {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.wallet-card-scan-text-light {
+  font-size: 15px;
+  color: #8B7355;
+  max-width: 140px;
+}
+
+.wallet-card-qr-container-light {
+  background: #FFFFFF;
+  padding: 8px 8px 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #E8DFD0;
+}
+
+.wallet-card-qr-placeholder-light {
+  width: 110px;
+  height: 110px;
+  background: #F5F0E8;
+}
+
+.wallet-card-branding-light {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding-left: 16px;
+}
+
+.wallet-card-branding-light-print {
+  padding-left: 7px;
+}
+
+.wallet-card-icon-light {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 8px;
+}
+
+.wallet-card-icon-light svg {
+  width: 100%;
+  height: 100%;
+  color: #B8860B;
+}
+
+.wallet-card-title-light {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #B8860B;
+}
+
+.wallet-card-titlear-light {
+  font-size: 14px;
+  max-width: 140px;
+  color: #6B5B3E;
+}
+
+.wallet-card-serial-light {
+  font-size: 10px;
+  color: #8B7355;
+  max-width: 140px;
+  margin-top: 8px;
+}
+
+.wallet-card-corner-light {
+  position: absolute;
+  bottom: -20px;
+  right: -20px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, rgba(184, 134, 11, 0.15) 0%, transparent 100%);
+  transform: rotate(45deg);
+}
+
+/* Wallet Card Back - Light */
+.wallet-card-back-light {
+  width: 320px;
+  height: 200px;
+  background: linear-gradient(145deg, #FAF8F5 0%, #F3EDE4 50%, #FAF8F5 100%);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  color: #2C2C2C;
+  font-family: var(--font-family);
+  border: 1.5px solid #D4C5A9;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.wallet-card-back-border-light {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(184, 134, 11, 0.2);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.wallet-card-back-content-light {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 70%;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-card-back-icon-light {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 12px;
+}
+
+.wallet-card-back-icon-light svg {
+  width: 100%;
+  height: 100%;
+  color: #B8860B;
+}
+
+.wallet-card-terms-light {
+  position: absolute;
+  bottom: 20px;
+  left: 16px;
+  right: 16px;
+  font-size: 8px;
+  color: #8B7355;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ========================================
+   CARD DESIGN SELECTOR
+   Used in card request modal
+   ======================================== */
+
+.card-design-selector {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.card-design-option {
+  cursor: pointer;
+  border-radius: 12px;
+  padding: 8px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  text-align: center;
+  background: transparent;
+  flex: 1;
+  max-width: 180px;
+}
+
+.card-design-option:hover {
+  border-color: rgba(0, 200, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.card-design-option.selected {
+  border-color: #00c8ff;
+  box-shadow: 0 4px 16px rgba(0, 200, 255, 0.2);
+}
+
+.card-design-option .design-preview {
+  transform: scale(0.45);
+  transform-origin: top right;
+  height: 96px;
+  margin-bottom: -7px;
+  pointer-events: none;
+}
+
+
+
+.card-design-option .design-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 8px;
+}
+
+.card-design-option .design-sublabel {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+}
+
+.card-design-option.selected .design-label {
+  color: #00c8ff;
+}
+
+/* Admin customer request design badge */
+.design-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.design-badge.classic {
+  background: rgba(0, 200, 255, 0.15);
+  color: #00c8ff;
+}
+
+.design-badge.light {
+  background: rgba(184, 134, 11, 0.15);
+  color: #B8860B;
+}
+
+/* ========================================
    WALLET CARD VIEW (PUBLIC SCAN PAGE)
    ======================================== */
 
@@ -4408,7 +4673,9 @@ a:hover {
   background: linear-gradient(180deg, #0a1628 0%, #0f2340 100%);
   border-radius: 20px;
   max-width: 400px;
-  width: 90%;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
   border: 1px solid rgba(0, 200, 255, 0.3);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 200, 255, 0.15);
   animation: modalSlideIn 0.3s ease-out;

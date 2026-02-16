@@ -28,12 +28,20 @@ const RENDER_SCALE = 3;
 /**
  * Dynamically import components
  */
-const getWalletCardComponent = async () => {
+const getWalletCardComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'light') {
+        const module = await import('../components/WalletCardLight.jsx');
+        return module.default;
+    }
     const module = await import('../components/WalletCard.jsx');
     return module.default;
 };
 
-const getWalletCardBackComponent = async () => {
+const getWalletCardBackComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'light') {
+        const module = await import('../components/WalletCardBackLight.jsx');
+        return module.default;
+    }
     const module = await import('../components/WalletCardBack.jsx');
     return module.default;
 };
@@ -152,9 +160,9 @@ export const downloadWalletCardPDF = async (card, printDate = null, walletType =
  * Generate wallet card print sheet PDF - OPTIMIZED
  * Uses batch rendering for much faster generation
  */
-export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple') => {
+export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic') => {
     const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
-    const WalletCard = await getWalletCardComponent();
+    const WalletCard = await getWalletCardComponent(cardDesign);
 
     // Calculate layout
     const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
@@ -245,8 +253,8 @@ export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate =
 /**
  * Download wallet card print sheet PDF
  */
-export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple') => {
-    const blob = await generateWalletPrintSheetPDF(cards, onProgress, printDate, boardWidth, boardHeight, walletType);
+export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic') => {
+    const blob = await generateWalletPrintSheetPDF(cards, onProgress, printDate, boardWidth, boardHeight, walletType, cardDesign);
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -262,9 +270,9 @@ export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate =
 /**
  * Generate wallet card backs print sheet PDF - OPTIMIZED
  */
-export const generateWalletCardBackPrintSheetPDF = async (cards, onProgress, boardWidth = 600, boardHeight = 900) => {
+export const generateWalletCardBackPrintSheetPDF = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
     const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
-    const WalletCardBack = await getWalletCardBackComponent();
+    const WalletCardBack = await getWalletCardBackComponent(cardDesign);
 
     // Calculate layout
     const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
@@ -350,8 +358,8 @@ export const generateWalletCardBackPrintSheetPDF = async (cards, onProgress, boa
 /**
  * Download wallet card backs print sheet PDF
  */
-export const downloadWalletCardBackPrintSheetPDF = async (cards, onProgress, boardWidth = 600, boardHeight = 900) => {
-    const blob = await generateWalletCardBackPrintSheetPDF(cards, onProgress, boardWidth, boardHeight);
+export const downloadWalletCardBackPrintSheetPDF = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
+    const blob = await generateWalletCardBackPrintSheetPDF(cards, onProgress, boardWidth, boardHeight, cardDesign);
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

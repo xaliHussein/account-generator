@@ -16,8 +16,11 @@ import {
     downloadWalletCardBacksImagesZip
 } from '../services/walletZipExporter';
 import WalletCard from './WalletCard';
+import WalletCardLight from './WalletCardLight';
 import WalletCardPrint from './WalletCardPrint';
+import WalletCardPrintLight from './WalletCardPrintLight';
 import WalletCardBack from './WalletCardBack';
+import WalletCardBackLight from './WalletCardBackLight';
 import Card from './ui/Card';
 import Pagination from './ui/Pagination';
 import {
@@ -120,6 +123,9 @@ const WalletStoreManagement = () => {
     const [cardBackLogo, setCardBackLogo] = useState(null);
 
     const [exportProgress, setExportProgress] = useState(null);
+
+    // Card design for export modal
+    const [cardDesignExport, setCardDesignExport] = useState('classic');
 
     // Helper function to format large numbers
     const formatNumber = (num) => {
@@ -306,8 +312,13 @@ const WalletStoreManagement = () => {
             const { createRoot } = await import('react-dom/client');
             const root = createRoot(container);
 
-            // Render the WalletCardPrint component
-            root.render(React.createElement(WalletCardPrint, { card: cardData, showQR: true }));
+            // Choose print component based on card design
+            const isLightDesign = request.card_design === 'light';
+            const PrintComponent = isLightDesign ? WalletCardPrintLight : WalletCardPrint;
+            const cardSelector = isLightDesign ? '.wallet-card-front-light' : '.wallet-card-front';
+
+            // Render the correct WalletCardPrint component
+            root.render(React.createElement(PrintComponent, { card: cardData, showQR: true }));
 
             // Wait for component to render
             await new Promise(resolve => setTimeout(resolve, 200));
@@ -315,7 +326,7 @@ const WalletStoreManagement = () => {
             const { default: html2canvas } = await import('html2canvas');
             const { jsPDF } = await import('jspdf');
 
-            const cardElement = container.querySelector('.wallet-card-front');
+            const cardElement = container.querySelector(cardSelector);
             if (!cardElement) {
                 throw new Error('Card element not found');
             }
@@ -362,15 +373,20 @@ const WalletStoreManagement = () => {
             const { createRoot } = await import('react-dom/client');
             const root = createRoot(container);
 
-            // Render the WalletCardPrint component
-            root.render(React.createElement(WalletCardPrint, { card: cardData, showQR: true }));
+            // Choose print component based on card design
+            const isLightDesign = request.card_design === 'light';
+            const PrintComponent = isLightDesign ? WalletCardPrintLight : WalletCardPrint;
+            const cardSelector = isLightDesign ? '.wallet-card-front-light' : '.wallet-card-front';
+
+            // Render the correct WalletCardPrint component
+            root.render(React.createElement(PrintComponent, { card: cardData, showQR: true }));
 
             // Wait for component to render
             await new Promise(resolve => setTimeout(resolve, 200));
 
             const { default: html2canvas } = await import('html2canvas');
 
-            const cardElement = container.querySelector('.wallet-card-front');
+            const cardElement = container.querySelector(cardSelector);
             if (!cardElement) {
                 throw new Error('Card element not found');
             }
@@ -554,7 +570,7 @@ const WalletStoreManagement = () => {
         try {
             await downloadWalletCardsZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType);
+            }, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('ZIP export failed:', err);
             setError('Failed to export ZIP');
@@ -572,7 +588,7 @@ const WalletStoreManagement = () => {
         try {
             await downloadWalletCardsImagesZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType);
+            }, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('ZIP images export failed:', err);
             setError('Failed to export ZIP images');
@@ -589,7 +605,7 @@ const WalletStoreManagement = () => {
         try {
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType);
+            await downloadWalletPrintSheetPDF(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('Print sheet export failed:', err);
             setError('Failed to export print sheet');
@@ -608,7 +624,7 @@ const WalletStoreManagement = () => {
         try {
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
-            await downloadWalletCardBackPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm);
+            await downloadWalletCardBackPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport);
         } catch (err) {
             console.error('Card back print sheet export failed:', err);
             setError('Failed to export card back print sheet');
@@ -628,7 +644,7 @@ const WalletStoreManagement = () => {
         try {
             await downloadWalletCardBacksImagesZip(count, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType);
+            }, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('Card back images export failed:', err);
             setError('Failed to export card back images');
@@ -670,7 +686,7 @@ const WalletStoreManagement = () => {
             setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-zip-images' });
             await downloadWalletCardsImagesZip(cardsToExport, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType);
+            }, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('Batch ZIP images export failed:', err);
             setError('Failed to export batch ZIP images');
@@ -710,7 +726,7 @@ const WalletStoreManagement = () => {
 
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(cardsToExport, setExportProgress, null, widthMm, heightMm, accountIdType);
+            await downloadWalletPrintSheetPDF(cardsToExport, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport);
         } catch (err) {
             console.error('Batch print sheet export failed:', err);
             setError('Failed to export batch print sheet');
@@ -748,7 +764,7 @@ const WalletStoreManagement = () => {
             setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-cardback-sheet' });
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
-            await downloadWalletCardBackPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm);
+            await downloadWalletCardBackPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport);
         } catch (err) {
             console.error('Batch card back print sheet export failed:', err);
             setError('Failed to export batch card back print sheet');
@@ -1360,6 +1376,7 @@ const WalletStoreManagement = () => {
                                         <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Phone</th>
                                         <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Email</th>
                                         <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Date of Birth</th>
+                                        <th style={{ padding: '16px 20px', textAlign: 'center', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Design</th>
                                         <th style={{ padding: '16px 20px', textAlign: 'left', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Order Date</th>
                                         <th style={{ padding: '16px 20px', textAlign: 'center', borderBottom: '2px solid rgba(147, 51, 234, 0.3)', fontWeight: '600', fontSize: '14px' }}>Actions</th>
                                     </tr>
@@ -1367,7 +1384,7 @@ const WalletStoreManagement = () => {
                                 <tbody>
                                     {customerRequests.length === 0 && !customerRequestsLoading ? (
                                         <tr>
-                                            <td colSpan="6" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                                            <td colSpan="7" style={{ padding: '40px 20px', textAlign: 'center' }}>
                                                 <div style={{ color: 'var(--color-text-secondary)', fontSize: '15px' }}>
                                                     <span style={{ fontSize: '32px', display: 'block', marginBottom: '10px' }}>📋</span>
                                                     No {customerRequestsStatusFilter} requests found.
@@ -1397,6 +1414,12 @@ const WalletStoreManagement = () => {
                                                         month: 'long',
                                                         day: 'numeric'
                                                     }) || 'N/A'}
+                                                </td>
+                                                {/* Design Badge */}
+                                                <td style={{ padding: '16px 20px', textAlign: 'center' }}>
+                                                    <span className={`design-badge ${request.card_design === 'light' ? 'light' : 'classic'}`}>
+                                                        {request.card_design === 'light' ? '☀ Light' : '🌙 Classic'}
+                                                    </span>
                                                 </td>
                                                 {/* Order Date */}
                                                 <td style={{ padding: '16px 20px', fontSize: '15px', color: 'var(--color-text-secondary)' }}>
@@ -1837,6 +1860,35 @@ const WalletStoreManagement = () => {
                             </div>
 
                             <div style={{ padding: 'var(--spacing-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xl)' }}>
+
+                                {/* Card Design Selector */}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: 'var(--spacing-md)',
+                                    padding: 'var(--spacing-md)',
+                                    background: 'var(--color-bg-secondary)',
+                                    borderRadius: 'var(--border-radius-lg)',
+                                    border: '1px solid var(--border-color)',
+                                    alignItems: 'center'
+                                }}>
+                                    <span style={{ fontWeight: '600', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Card Design:</span>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flex: 1 }}>
+                                        <button
+                                            onClick={() => setCardDesignExport('classic')}
+                                            className={`btn ${cardDesignExport === 'classic' ? 'btn-primary' : 'btn-ghost'}`}
+                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)' }}
+                                        >
+                                            🌙 Classic (Dark)
+                                        </button>
+                                        <button
+                                            onClick={() => setCardDesignExport('light')}
+                                            className={`btn ${cardDesignExport === 'light' ? 'btn-primary' : 'btn-ghost'}`}
+                                            style={{ flex: 1, fontSize: 'var(--font-size-sm)' }}
+                                        >
+                                            ☀️ Elegant (Light)
+                                        </button>
+                                    </div>
+                                </div>
                                 {/* Export Progress */}
                                 {exportProgress && (
                                     <div style={{
@@ -2021,7 +2073,11 @@ const WalletStoreManagement = () => {
                                         <Card.Body style={{ padding: 'var(--spacing-md)', display: 'flex', justifyContent: 'center' }}>
                                             {selectedPreviewCard && (
                                                 <div style={{ transform: 'scale(0.85)', transformOrigin: 'center' }}>
-                                                    <WalletCard card={selectedPreviewCard} walletType={accountIdType} />
+                                                    {cardDesignExport === 'light' ? (
+                                                        <WalletCardLight card={selectedPreviewCard} walletType={accountIdType} />
+                                                    ) : (
+                                                        <WalletCard card={selectedPreviewCard} walletType={accountIdType} />
+                                                    )}
                                                 </div>
                                             )}
                                         </Card.Body>
@@ -2075,7 +2131,11 @@ const WalletStoreManagement = () => {
                                         <Card.Body style={{ padding: 'var(--spacing-md)', display: 'flex', justifyContent: 'center' }}>
                                             {selectedPreviewCard && (
                                                 <div style={{ transform: 'scale(0.85)', transformOrigin: 'center' }}>
-                                                    <WalletCardBack card={selectedPreviewCard} />
+                                                    {cardDesignExport === 'light' ? (
+                                                        <WalletCardBackLight card={selectedPreviewCard} />
+                                                    ) : (
+                                                        <WalletCardBack card={selectedPreviewCard} />
+                                                    )}
                                                 </div>
                                             )}
                                         </Card.Body>
