@@ -484,77 +484,166 @@ const WalletCardView = () => {
                                 </a>
                             </div>
 
-                            {/* WalletCard-Style Visual Preview - Matches WalletCard.jsx exactly */}
-                            <div className="account-card-preview">
-                                <div className="preview-title">معاينة البطاقة</div>
-                                <div className="wallet-card-front" style={{ transform: 'scale(0.99)', transformOrigin: 'center', margin: '-34px -15px -12px 0px' }}>
-                                    {/* Background circuit pattern */}
-                                    <div className="wallet-card-circuits wallet-circuits-left"></div>
-                                    <div className="wallet-card-circuits wallet-circuits-right"></div>
-
-                                    <div className="wallet-card-content">
-                                        {/* Left side - QR Code Section (matches WalletCard.jsx) */}
-
-
-                                        {/* Right side - Branding with Customer Info above Serial (matches user request) */}
-                                        <div className="wallet-card-branding" style={{ justifyContent: 'flex-start', paddingTop: '8px' }}>
-                                            <div className="wallet-card-icon" style={{ width: '32px', height: '32px', marginBottom: '6px' }}>
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                                    <rect x="2" y="6" width="20" height="12" rx="2" />
-                                                    <path d="M22 10H2" />
-                                                    <circle cx="18" cy="14" r="1.5" fill="currentColor" />
-                                                </svg>
-                                            </div>
-                                            <h2 className="wallet-card-title" style={{ fontSize: '12px', marginBottom: '2px' }}>{card.email_type === 'google' ? 'Google Wallet' : 'Apple Wallet'}</h2>
-                                            <div className="wallet-card-title-ar" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '10px', marginBottom: '6px' }}>
-                                                {card.email_type === 'google' ? 'محفظة جوجل' : 'محفظة أبل'}
-                                            </div>
-                                            {/* Customer Info Section */}
-                                            <div style={{ width: '100%', fontSize: '8px', color: 'rgba(255,255,255,0.9)', textAlign: 'left', lineHeight: '1.3' }}>
-                                                <div style={{ marginBottom: '2px' }}>
-                                                    <span style={{ color: '#00c8ff' }}>Name:</span> {card.first_name} {card.last_name}
+                            {/* Card Design Selector */}
+                            <div style={{ marginBottom: '12px' }}>
+                                <div className="preview-title" style={{ textAlign: 'center', marginBottom: '8px', color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '600' }}>اختر تصميم البطاقة</div>
+                                <div className="card-design-selector">
+                                    {/* Classic Dark Design */}
+                                    <div
+                                        className={`card-design-option ${selectedCardDesign === 'classic' ? 'selected' : ''}`}
+                                        onClick={() => setSelectedCardDesign('classic')}
+                                    >
+                                        <div className="design-preview">
+                                            <div className="wallet-card-front" style={{ transform: 'scale(1)', width: '355px', height: '200px' }}>
+                                                <div className="wallet-card-circuits wallet-circuits-left"></div>
+                                                <div className="wallet-card-circuits wallet-circuits-right"></div>
+                                                <div className="wallet-card-content">
+                                                    <div className="wallet-card-branding">
+                                                        <div className="wallet-card-icon" style={{ width: '28px', height: '28px', marginBottom: '4px' }}>
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                                                <path d="M22 10H2" />
+                                                                <circle cx="18" cy="14" r="1.5" fill="currentColor" />
+                                                            </svg>
+                                                        </div>
+                                                        <h2 className="wallet-card-title" style={{ fontSize: '10px' }}>{card.email_type === 'google' ? 'Google Wallet' : 'Apple Wallet'}</h2>
+                                                    </div>
                                                 </div>
-                                                <div style={{ marginBottom: '2px', wordBreak: 'break-all', textAlign: 'left', direction: 'ltr' }}>
-                                                    <span style={{ color: '#00c8ff' }}>Email:</span>  {card.email.length > 14 ? `${card.email.slice(0, 14)}...` : card.email}
-                                                </div>
-                                                <div style={{ marginBottom: '2px' }}>
-                                                    <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ fontWeight: 'bold' }}>{card.password}</span>
-                                                </div>
-                                                <div style={{ marginBottom: '2px' }}>
-                                                    <span style={{ color: '#00c8ff' }}>DOB:</span> {card.birthday || 'N/A'}
-                                                </div>
-                                                <div className="wallet-card-serial-2" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '8px', marginTop: '4px' }}>
-                                                    Serial No: {card.serial_number || 'N/A'}
-                                                </div>
+                                                <div className="wallet-card-diamond"></div>
                                             </div>
                                         </div>
-
-                                        <div className="wallet-card-qr-section">
-                                            <div
-                                                className="wallet-card-scan-text"
-                                                dir="rtl"
-                                                style={{
-                                                    fontFamily: 'Arial, sans-serif',
-                                                    unicodeBidi: 'embed',
-                                                }}
-                                            >
-                                                امسح هنا
-                                            </div>
-                                            <div className="wallet-card-qr-container">
-                                                <QRCode
-                                                    value={`${window.location.origin}/#/wallet/${card.access_token}`}
-                                                    size={110}
-                                                    level="M"
-                                                    bgColor="#FFFFFF"
-                                                    fgColor="#000000"
-                                                />
-                                            </div>
-                                        </div>
+                                        <div className="design-label">كلاسيك</div>
+                                        <div className="design-sublabel">التصميم الداكن</div>
                                     </div>
 
-                                    {/* Corner diamond */}
-                                    <div className="wallet-card-diamond"></div>
+                                    {/* Light Off-White Design */}
+                                    <div
+                                        className={`card-design-option ${selectedCardDesign === 'light' ? 'selected' : ''}`}
+                                        onClick={() => setSelectedCardDesign('light')}
+                                    >
+                                        <div className="design-preview">
+                                            <div className="wallet-card-front-light" style={{ transform: 'scale(1)', width: '355px', height: '200px' }}>
+                                                <div className="wallet-light-accent-line wallet-light-accent-top"></div>
+                                                <div className="wallet-light-accent-line wallet-light-accent-bottom"></div>
+                                                <div className="wallet-card-content-light">
+                                                    <div className="wallet-card-branding-light">
+                                                        <div className="wallet-card-icon-light" style={{ width: '28px', height: '28px', marginBottom: '4px' }}>
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                                                <path d="M22 10H2" />
+                                                                <circle cx="18" cy="14" r="1.5" fill="currentColor" />
+                                                            </svg>
+                                                        </div>
+                                                        <h2 className="wallet-card-title-light" style={{ fontSize: '10px' }}>{card.email_type === 'google' ? 'Google Wallet' : 'Apple Wallet'}</h2>
+                                                    </div>
+                                                </div>
+                                                <div className="wallet-card-corner-light"></div>
+                                            </div>
+                                        </div>
+                                        <div className="design-label">أنيق</div>
+                                        <div className="design-sublabel">التصميم الفاتح</div>
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Card Preview based on selected design */}
+                            <div className="account-card-preview">
+                                <div className="preview-title">معاينة البطاقة</div>
+                                {selectedCardDesign === 'light' ? (
+                                    // Light design preview
+                                    <div className="wallet-card-front-light" style={{ transform: 'scale(0.99)', transformOrigin: 'center', margin: 'auto' }}>
+                                        <div className="wallet-light-accent-line wallet-light-accent-top"></div>
+                                        <div className="wallet-light-accent-line wallet-light-accent-bottom"></div>
+                                        <div className="wallet-card-content-light">
+                                            <div className="wallet-card-branding-light" style={{ justifyContent: 'flex-start', paddingTop: '8px' }}>
+                                                <div className="wallet-card-icon-light" style={{ width: '32px', height: '32px', marginBottom: '6px' }}>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                                        <path d="M22 10H2" />
+                                                        <circle cx="18" cy="14" r="1.5" fill="currentColor" />
+                                                    </svg>
+                                                </div>
+                                                <h2 className="wallet-card-title-light" style={{ fontSize: '12px', marginBottom: '2px' }}>{card.email_type === 'google' ? 'Google Wallet' : 'Apple Wallet'}</h2>
+                                                <div className="wallet-card-titlear-light" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '10px', marginBottom: '6px' }}>
+                                                    {card.email_type === 'google' ? 'محفظة جوجل' : 'محفظة أبل'}
+                                                </div>
+                                                <div style={{ width: '100%', fontSize: '8px', color: '#4A4A4A', textAlign: 'left', lineHeight: '1.3' }}>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#B8860B' }}>Name:</span> {card.first_name} {card.last_name}
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px', wordBreak: 'break-all', textAlign: 'left', direction: 'ltr' }}>
+                                                        <span style={{ color: '#B8860B' }}>Email:</span>  {card.email.length > 14 ? `${card.email.slice(0, 14)}...` : card.email}
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#B8860B' }}>Pass:</span> <span style={{ fontWeight: 'bold' }}>{card.password}</span>
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#B8860B' }}>DOB:</span> {card.birthday || 'N/A'}
+                                                    </div>
+                                                    <div className="wallet-card-serial-light" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '8px', marginTop: '4px' }}>
+                                                        Serial No: {card.serial_number || 'N/A'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="wallet-card-qr-section-light">
+                                                <div className="wallet-card-scan-text-light" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed' }}>
+                                                    امسح هنا
+                                                </div>
+                                                <div className="wallet-card-qr-container-light">
+                                                    <QRCode value={`${window.location.origin}/#/wallet/${card.access_token}`} size={110} level="M" bgColor="#FAF8F5" fgColor="#2C2C2C" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="wallet-card-corner-light"></div>
+                                    </div>
+                                ) : (
+                                    // Classic dark design preview (original)
+                                    <div className="wallet-card-front" style={{ transform: 'scale(0.99)', transformOrigin: 'center', margin: 'auto' }}>
+                                        <div className="wallet-card-circuits wallet-circuits-left"></div>
+                                        <div className="wallet-card-circuits wallet-circuits-right"></div>
+                                        <div className="wallet-card-content">
+                                            <div className="wallet-card-branding" style={{ justifyContent: 'flex-start', paddingTop: '8px' }}>
+                                                <div className="wallet-card-icon" style={{ width: '32px', height: '32px', marginBottom: '6px' }}>
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                                        <path d="M22 10H2" />
+                                                        <circle cx="18" cy="14" r="1.5" fill="currentColor" />
+                                                    </svg>
+                                                </div>
+                                                <h2 className="wallet-card-title" style={{ fontSize: '12px', marginBottom: '2px' }}>{card.email_type === 'google' ? 'Google Wallet' : 'Apple Wallet'}</h2>
+                                                <div className="wallet-card-title-ar" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '10px', marginBottom: '6px' }}>
+                                                    {card.email_type === 'google' ? 'محفظة جوجل' : 'محفظة أبل'}
+                                                </div>
+                                                <div style={{ width: '100%', fontSize: '8px', color: 'rgba(255,255,255,0.9)', textAlign: 'left', lineHeight: '1.3' }}>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#00c8ff' }}>Name:</span> {card.first_name} {card.last_name}
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px', wordBreak: 'break-all', textAlign: 'left', direction: 'ltr' }}>
+                                                        <span style={{ color: '#00c8ff' }}>Email:</span>  {card.email.length > 14 ? `${card.email.slice(0, 14)}...` : card.email}
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ fontWeight: 'bold' }}>{card.password}</span>
+                                                    </div>
+                                                    <div style={{ marginBottom: '2px' }}>
+                                                        <span style={{ color: '#00c8ff' }}>DOB:</span> {card.birthday || 'N/A'}
+                                                    </div>
+                                                    <div className="wallet-card-serial-2" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '8px', marginTop: '4px' }}>
+                                                        Serial No: {card.serial_number || 'N/A'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="wallet-card-qr-section">
+                                                <div className="wallet-card-scan-text" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed' }}>
+                                                    امسح هنا
+                                                </div>
+                                                <div className="wallet-card-qr-container">
+                                                    <QRCode value={`${window.location.origin}/#/wallet/${card.access_token}`} size={110} level="M" bgColor="#FFFFFF" fgColor="#000000" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="wallet-card-diamond"></div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="account-info-actions">
