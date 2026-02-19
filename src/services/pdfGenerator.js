@@ -173,7 +173,7 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
     pdf.setFontSize(6);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(85, 85, 85);
-    pdf.text(`DOB: ${account.birthday || ''}`, boxX, nameY + 4);
+    pdf.text(`DOB: ${new Date(account.birthday).toLocaleDateString('en-CA') || ''}`, boxX, nameY + 4);
 
     // Bottom section - Serial Number (below QR code)
     const bottomY = height - cardPadding - 6;
@@ -586,7 +586,7 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
     pdf.setFontSize(5);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(85, 85, 85);
-    pdf.text(`DOB: ${account.birthday || ''}`, boxX, nameY + 3);
+    pdf.text(`DOB: ${new Date(account.birthday).toLocaleDateString('en-CA') || ''}`, boxX, nameY + 3);
 
     // VIP Badge dimensions (calculated first so we can center logo above it)
     const badgeWidth = 18;

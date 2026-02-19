@@ -299,7 +299,7 @@ const WalletStoreManagement = () => {
             birthday: request.card_data.birthday,
             serial_number: serialNumber,
             email_type: request.card_data.emailType,
-            access_token: request.wallet_card?.access_token || 'demo'
+            access_token: request.card_data.access_token || 'demo'
         };
 
         // Create container and render React component
@@ -360,7 +360,7 @@ const WalletStoreManagement = () => {
             birthday: request.card_data.birthday,
             serial_number: serialNumber,
             email_type: request.card_data.emailType,
-            access_token: request.wallet_card?.access_token || 'demo'
+            access_token: request.card_data.access_token || 'demo'
         };
 
         // Create container and render React component
@@ -877,10 +877,12 @@ const WalletStoreManagement = () => {
     };
 
     // Load activated cards
-    const loadActivatedCards = async (page = 1) => {
+    const loadActivatedCards = async (page = 1, searchOverride = null) => {
         setActivatedLoading(true);
         try {
-            const data = await getActivatedWalletCards(page, 15, activatedSort, activatedSearch);
+            // Use override if provided, otherwise use state
+            const searchTerm = searchOverride !== null ? searchOverride : activatedSearch;
+            const data = await getActivatedWalletCards(page, 15, activatedSort, searchTerm);
             setActivatedCards(data.data);
             setActivatedPage(data.current_page);
             setActivatedTotalPages(data.last_page);
@@ -1043,7 +1045,7 @@ const WalletStoreManagement = () => {
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: card.phone_number ? 'inherit' : 'var(--color-text-secondary)' }}>{card.phone_number || '—'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serial_number || 'N/A'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-                                                    {card.created_at ? new Date(card.created_at).toLocaleDateString() : 'N/A'}
+                                                    {card.created_at ? new Date(card.created_at).toLocaleDateString('en-CA') : 'N/A'}
                                                 </td>
                                             </tr>
                                         ))}
@@ -1113,16 +1115,17 @@ const WalletStoreManagement = () => {
                                     placeholder="Search by email, phone, or serial..."
                                     value={activatedSearch}
                                     onChange={(e) => {
-                                        setActivatedSearch(e.target.value);
-                                        if (e.target.value === '' || e.target.value.length > 2) {
+                                        const newValue = e.target.value;
+                                        setActivatedSearch(newValue);
+                                        if (newValue === '' || newValue.length > 2) {
                                             setActivatedPage(1);
-                                            loadActivatedCards(1);
+                                            loadActivatedCards(1, newValue);
                                         }
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             setActivatedPage(1);
-                                            loadActivatedCards(1);
+                                            loadActivatedCards(1, activatedSearch);
                                         }
                                     }}
                                     style={{
@@ -1197,14 +1200,14 @@ const WalletStoreManagement = () => {
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>
                                                     <div style={{ fontWeight: 500 }}>{card.email}</div>
                                                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{card.firstName} {card.lastName}</div>
-                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {new Date(card.birthday).toLocaleDateString()}</div>}
+                                                    {card.birthday && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>DOB: {new Date(card.birthday).toLocaleDateString('en-CA')}</div>}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' }}>{card.storeName}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.phone}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-accent-purple)' }}>{card.password || '***'}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace' }}>{card.serialNumber}</td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
-                                                    {new Date(card.created_at).toLocaleDateString()}
+                                                    {new Date(card.created_at).toLocaleDateString('en-CA')}
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
@@ -1423,7 +1426,7 @@ const WalletStoreManagement = () => {
                                                 </td>
                                                 {/* Order Date */}
                                                 <td style={{ padding: '16px 20px', fontSize: '15px', color: 'var(--color-text-secondary)' }}>
-                                                    {new Date(request.created_at).toLocaleDateString()}
+                                                    {new Date(request.created_at).toLocaleDateString('en-CA')}
                                                 </td>
                                                 <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>

@@ -9,7 +9,7 @@ import QRCode from 'react-qr-code';
 const WalletCardPrint = ({ card, showQR = true }) => {
     // Use frontend URL for QR code so it opens the wallet card view page
     const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
-    const qrUrl = `${FRONTEND_URL}/#/wallet/${card.access_token || 'demo'}`;
+    const qrUrl = `${FRONTEND_URL}/#/wallet/${card.access_token}`;
 
     // Determine wallet type from card data
     const walletType = card.email_type === 'google' || card.emailType === 'google' ? 'google' : 'apple';
@@ -112,10 +112,10 @@ const WalletCardPrint = ({ card, showQR = true }) => {
                             <span style={{ color: '#00c8ff' }}>Email:</span> {email}
                         </div>
                         <div style={{ marginBottom: '2px', wordBreak: 'break-all' }}>
-                            <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ fontWeight: 'bold', display: 'inline' }}>{password || 'N/A'}</span>
+                            <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ display: 'inline' }}>{password || 'N/A'}</span>
                         </div>
                         <div style={{ marginBottom: '2px' }}>
-                            <span style={{ color: '#00c8ff' }} dir='ltr'>DOB:</span> {new Date(birthday).toLocaleDateString()}
+                            <span style={{ color: '#00c8ff' }}>DOB:</span> {new Date(birthday).toLocaleDateString('en-CA')}
                         </div>
                         <div
                             className="wallet-card-serial-2"

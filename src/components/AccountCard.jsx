@@ -107,7 +107,7 @@ const AccountCard = ({
                     {/* Name and DOB */}
                     <div className="apple-name-section">
                         <div className="apple-name">{account.firstName} {account.lastName}</div>
-                        <div className="apple-dob">DOB: {account.birthday}</div>
+                        <div className="apple-dob">DOB: {new Date(account.birthday).toLocaleDateString('en-CA')}</div>
                     </div>
                 </div>
             </div>

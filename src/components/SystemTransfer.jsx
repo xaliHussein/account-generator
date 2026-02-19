@@ -476,7 +476,7 @@ const SystemTransfer = () => {
                                                 </td>
                                             )}
                                             <td className="transfer-date">
-                                                {new Date(cardType === 'regular' ? card.createdAt : card.created_at).toLocaleDateString()}
+                                                {new Date(cardType === 'regular' ? card.createdAt : card.created_at).toLocaleDateString('en-CA')}
                                             </td>
                                         </tr>
                                     ))}
