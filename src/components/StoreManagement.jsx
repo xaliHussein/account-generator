@@ -629,10 +629,12 @@ const StoreManagement = () => {
     };
 
     // Load activated cards
-    const loadActivatedCards = async (page = 1) => {
+    const loadActivatedCards = async (page = 1, searchOverride = null) => {
         setActivatedLoading(true);
         try {
-            const data = await getActivatedCards(page, 15, activatedSort, activatedSearch);
+            // Use override if provided, otherwise use state
+            const searchTerm = searchOverride !== null ? searchOverride : activatedSearch;
+            const data = await getActivatedCards(page, 15, activatedSort, searchTerm);
             setActivatedCards(data.data);
             setActivatedPage(data.current_page);
             setActivatedTotalPages(data.last_page);
@@ -903,16 +905,17 @@ const StoreManagement = () => {
                                     placeholder="Search by email, phone, or serial..."
                                     value={activatedSearch}
                                     onChange={(e) => {
-                                        setActivatedSearch(e.target.value);
-                                        if (e.target.value === '' || e.target.value.length > 2) {
+                                        const newValue = e.target.value;
+                                        setActivatedSearch(newValue);
+                                        if (newValue === '' || newValue.length > 2) {
                                             setActivatedPage(1);
-                                            loadActivatedCards(1);
+                                            loadActivatedCards(1, newValue);
                                         }
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             setActivatedPage(1);
-                                            loadActivatedCards(1);
+                                            loadActivatedCards(1, activatedSearch);
                                         }
                                     }}
                                     style={{

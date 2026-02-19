@@ -112,7 +112,7 @@ const WalletCardPrint = ({ card, showQR = true }) => {
                             <span style={{ color: '#00c8ff' }}>Email:</span> {email}
                         </div>
                         <div style={{ marginBottom: '2px', wordBreak: 'break-all' }}>
-                            <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ fontWeight: 'bold', display: 'inline' }}>{password || 'N/A'}</span>
+                            <span style={{ color: '#00c8ff' }}>Pass:</span> <span style={{ display: 'inline' }}>{password || 'N/A'}</span>
                         </div>
                         <div style={{ marginBottom: '2px' }}>
                             <span style={{ color: '#00c8ff' }}>DOB:</span> {new Date(birthday).toLocaleDateString('en-CA')}
