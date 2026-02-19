@@ -578,7 +578,7 @@ const WalletCardView = () => {
                                                         <span style={{ color: '#B8860B' }}>Pass:</span> <span style={{ fontWeight: 'bold' }}>{card.password}</span>
                                                     </div>
                                                     <div style={{ marginBottom: '2px' }}>
-                                                        <span style={{ color: '#B8860B' }}>DOB:</span> {card.birthday || 'N/A'}
+                                                        <span style={{ color: '#B8860B' }}>DOB:</span> {new Date(card.birthday).toLocaleDateString('en-CA') || 'N/A'}
                                                     </div>
                                                     <div className="wallet-card-serial-light" dir="rtl" style={{ fontFamily: 'Arial, sans-serif', unicodeBidi: 'embed', fontSize: '8px', marginTop: '4px' }}>
                                                         Serial No: {card.serial_number || 'N/A'}
