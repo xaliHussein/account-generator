@@ -140,7 +140,7 @@ const canvasToTiffBlob = async (canvas) => {
 /**
  * Export wallet cards as ZIP with PDFs only
  */
-export const exportWalletCardsAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
+export const exportWalletCardsAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zip = new JSZip();
     const folder = zip.folder('wallet-cards');
     const WalletCard = await getWalletCardComponent(cardDesign);
@@ -155,7 +155,8 @@ export const exportWalletCardsAsZip = async (cards, onProgress, walletType = 'ap
         const batchProps = batchCards.map(card => ({
             card,
             showQR: true,
-            walletType
+            walletType,
+            qrLogo
         }));
 
         // Render entire batch at once
@@ -214,7 +215,7 @@ export const exportWalletCardsAsZip = async (cards, onProgress, walletType = 'ap
 /**
  * Export wallet cards as ZIP with both PDFs and TIFF images
  */
-export const exportWalletCardsWithTiffAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
+export const exportWalletCardsWithTiffAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zip = new JSZip();
     const pdfFolder = zip.folder('pdfs');
     const tiffFolder = zip.folder('images');
@@ -230,7 +231,8 @@ export const exportWalletCardsWithTiffAsZip = async (cards, onProgress, walletTy
         const batchProps = batchCards.map(card => ({
             card,
             showQR: true,
-            walletType
+            walletType,
+            qrLogo
         }));
 
         // Render entire batch at once
@@ -307,7 +309,7 @@ const getWalletCardBackComponent = async (cardDesign = 'classic') => {
 /**
  * Export wallet cards as ZIP with Images only (PNG/TIFF)
  */
-export const exportWalletCardsImagesOnlyAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
+export const exportWalletCardsImagesOnlyAsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zip = new JSZip();
     const tiffFolder = zip.folder('images');
     const WalletCard = await getWalletCardComponent(cardDesign);
@@ -322,7 +324,8 @@ export const exportWalletCardsImagesOnlyAsZip = async (cards, onProgress, wallet
         const batchProps = batchCards.map(card => ({
             card,
             showQR: true,
-            walletType
+            walletType,
+            qrLogo
         }));
 
         // Render entire batch at once
@@ -440,8 +443,8 @@ export const exportWalletCardBacksAsZip = async (count, onProgress, walletType =
 /**
  * Download wallet cards as ZIP (PDFs only)
  */
-export const downloadWalletCardsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
-    const zipBlob = await exportWalletCardsAsZip(cards, onProgress, walletType, cardDesign);
+export const downloadWalletCardsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    const zipBlob = await exportWalletCardsAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
     const timestamp = new Date().toISOString().slice(0, 10);
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards.zip`);
 };
@@ -449,8 +452,8 @@ export const downloadWalletCardsZip = async (cards, onProgress, walletType = 'ap
 /**
  * Download wallet cards as ZIP (PDFs + Images)
  */
-export const downloadWalletCardsWithTiffZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
-    const zipBlob = await exportWalletCardsWithTiffAsZip(cards, onProgress, walletType, cardDesign);
+export const downloadWalletCardsWithTiffZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    const zipBlob = await exportWalletCardsWithTiffAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
     const timestamp = new Date().toISOString().slice(0, 10);
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards_pdf+images.zip`);
 };
@@ -458,8 +461,8 @@ export const downloadWalletCardsWithTiffZip = async (cards, onProgress, walletTy
 /**
  * Download wallet cards as ZIP (Images Only)
  */
-export const downloadWalletCardsImagesZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic') => {
-    const zipBlob = await exportWalletCardsImagesOnlyAsZip(cards, onProgress, walletType, cardDesign);
+export const downloadWalletCardsImagesZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    const zipBlob = await exportWalletCardsImagesOnlyAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
     const timestamp = new Date().toISOString().slice(0, 10);
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards_images.zip`);
 };

@@ -174,7 +174,7 @@ const canvasToTiffBlob = async (canvas) => {
 /**
  * Export Account Cards as ZIP (Images Only)
  */
-export const exportAccountCardsImagesAsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue') => {
+export const exportAccountCardsImagesAsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', qrLogo = null) => {
     const zip = new JSZip();
     const tiffFolder = zip.folder('images');
     const AccountCard = await getAccountCardComponent();
@@ -189,9 +189,10 @@ export const exportAccountCardsImagesAsZip = async (accounts, onProgress, custom
         const batchProps = batchAccounts.map((account) => ({
              account: account,
              showQR: true,
-             batchNumber: 1, // Defaulting to 1 as we don't always have batch info structure here easily. logic improvement possible.
+             batchNumber: 1,
              customLogo: customLogo,
-             cardColor: cardColor
+             cardColor: cardColor,
+             qrLogo: qrLogo
         }));
 
         // Render batch
@@ -314,8 +315,8 @@ export const exportCardBacksImagesAsZip = async (count, onProgress, customLogo =
 /**
  * Download Account Cards as ZIP (Images Only)
  */
-export const downloadAccountCardsImagesZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue') => {
-    const zipBlob = await exportAccountCardsImagesAsZip(accounts, onProgress, customLogo, cardColor);
+export const downloadAccountCardsImagesZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', qrLogo = null) => {
+    const zipBlob = await exportAccountCardsImagesAsZip(accounts, onProgress, customLogo, cardColor, qrLogo);
     const timestamp = new Date().toISOString().slice(0, 10);
     saveAs(zipBlob, `accounts_images_${timestamp}_${accounts.length}.zip`);
 };

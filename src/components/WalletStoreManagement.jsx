@@ -121,6 +121,7 @@ const WalletStoreManagement = () => {
     const [accountIdType, setAccountIdType] = useState('apple');
     const [customLogo, setCustomLogo] = useState(null);
     const [cardBackLogo, setCardBackLogo] = useState(null);
+    const [qrLogo, setQrLogo] = useState(null);
 
     const [exportProgress, setExportProgress] = useState(null);
 
@@ -570,7 +571,7 @@ const WalletStoreManagement = () => {
         try {
             await downloadWalletCardsZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType, cardDesignExport);
+            }, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('ZIP export failed:', err);
             setError('Failed to export ZIP');
@@ -588,7 +589,7 @@ const WalletStoreManagement = () => {
         try {
             await downloadWalletCardsImagesZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType, cardDesignExport);
+            }, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('ZIP images export failed:', err);
             setError('Failed to export ZIP images');
@@ -605,7 +606,7 @@ const WalletStoreManagement = () => {
         try {
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport);
+            await downloadWalletPrintSheetPDF(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('Print sheet export failed:', err);
             setError('Failed to export print sheet');
@@ -686,7 +687,7 @@ const WalletStoreManagement = () => {
             setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-zip-images' });
             await downloadWalletCardsImagesZip(cardsToExport, (progress) => {
                 setExportProgress(progress);
-            }, accountIdType, cardDesignExport);
+            }, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('Batch ZIP images export failed:', err);
             setError('Failed to export batch ZIP images');
@@ -726,7 +727,7 @@ const WalletStoreManagement = () => {
 
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(cardsToExport, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport);
+            await downloadWalletPrintSheetPDF(cardsToExport, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('Batch print sheet export failed:', err);
             setError('Failed to export batch print sheet');
@@ -777,7 +778,7 @@ const WalletStoreManagement = () => {
     // Download single card PDF
     const handleDownloadCardPDF = async (card) => {
         try {
-            await downloadWalletCardPDF(card, null, accountIdType);
+            await downloadWalletCardPDF(card, null, accountIdType, qrLogo);
         } catch (err) {
             console.error('PDF download failed:', err);
             setError('Failed to download PDF');
@@ -817,6 +818,24 @@ const WalletStoreManagement = () => {
             reader.onload = (e) => setCardBackLogo(e.target.result);
             reader.readAsDataURL(file);
         }
+    };
+
+    const handleQrLogoUpload = (event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setError('Please upload an image file');
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                setError('QR logo must be under 2MB');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => setQrLogo(e.target.result);
+            reader.readAsDataURL(file);
+        }
+        event.target.value = '';
     };
 
     const viewBatchAccounts = async (batchId, page = 1, search = batchSearchQuery) => {
@@ -2072,14 +2091,52 @@ const WalletStoreManagement = () => {
                                                     </button>
                                                 )}
                                             </div>
+                                            {/* QR Logo Upload */}
+                                            <label style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 'var(--spacing-xs)',
+                                                padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                                background: qrLogo ? 'rgba(0, 122, 255, 0.15)' : 'var(--color-bg-tertiary)',
+                                                borderRadius: 'var(--border-radius-sm)',
+                                                cursor: 'pointer',
+                                                fontSize: 'var(--font-size-xs)',
+                                                color: qrLogo ? 'var(--color-accent-blue)' : 'var(--color-text-secondary)'
+                                            }}>
+                                                <Upload size={14} />
+                                                {qrLogo ? 'QR Logo ✓' : 'QR Logo'}
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleQrLogoUpload}
+                                                    style={{ display: 'none' }}
+                                                />
+                                            </label>
+                                            {qrLogo && (
+                                                <button
+                                                    onClick={() => setQrLogo(null)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        padding: 'var(--spacing-xs)',
+                                                        background: 'rgba(255, 59, 48, 0.1)',
+                                                        border: 'none',
+                                                        borderRadius: 'var(--border-radius-sm)',
+                                                        cursor: 'pointer',
+                                                        color: 'var(--color-accent-red)'
+                                                    }}
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
                                         </Card.Header>
                                         <Card.Body style={{ padding: 'var(--spacing-md)', display: 'flex', justifyContent: 'center' }}>
                                             {selectedPreviewCard && (
                                                 <div style={{ transform: 'scale(0.85)', transformOrigin: 'center' }}>
                                                     {cardDesignExport === 'light' ? (
-                                                        <WalletCardLight card={selectedPreviewCard} walletType={accountIdType} />
+                                                        <WalletCardLight card={selectedPreviewCard} walletType={accountIdType} qrLogo={qrLogo} />
                                                     ) : (
-                                                        <WalletCard card={selectedPreviewCard} walletType={accountIdType} />
+                                                        <WalletCard card={selectedPreviewCard} walletType={accountIdType} qrLogo={qrLogo} />
                                                     )}
                                                 </div>
                                             )}

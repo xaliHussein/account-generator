@@ -12,7 +12,8 @@ const AccountCard = ({
     showQR = true,
     batchNumber = 1,
     customLogo = null,
-    cardColor = 'blue'
+    cardColor = 'blue',
+    qrLogo = null
 }) => {
     // Card color mapping to match PDF
     const CARD_COLORS = {
@@ -71,15 +72,33 @@ const AccountCard = ({
                 {/* Left side - QR Code */}
                 <div className="apple-card-qr-section">
                     {showQR && qrValue ? (
-                        <div style={{ background: 'white', padding: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ background: 'white', padding: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                             <QRCode
                                 value={qrValue}
                                 size={110}
-                                level="M"
+                                level={qrLogo ? "H" : "M"}
                                 bgColor="#FFFFFF"
                                 fgColor="#000000"
                                 style={{ maxWidth: '100%', height: 'auto' }}
                             />
+                            {qrLogo && (
+                                <img
+                                    src={qrLogo}
+                                    alt="QR Logo"
+                                    style={{
+                                        position: 'absolute',
+                                        top: '50%',
+                                        left: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '4px',
+                                        background: 'white',
+                                        padding: '2px',
+                                        objectFit: 'contain'
+                                    }}
+                                />
+                            )}
                         </div>
                     ) : (
                         showQR && (

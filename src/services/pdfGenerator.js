@@ -15,7 +15,7 @@ const CARD_COLORS = {
  * Uses API endpoint with access token for security
  * @param {Object} account - Account data (must include id and accessToken)
  */
-const generateQRDataURL = async (account) => {
+const generateQRDataURL = async (account, qrLogo = null) => {
     // Build QR URL pointing to frontend view page with token
     let qrValue;
     if (account.id && account.accessToken) {
@@ -33,7 +33,7 @@ const generateQRDataURL = async (account) => {
                 dark: '#000000',
                 light: '#FFFFFF'
             },
-            errorCorrectionLevel: 'M'
+            errorCorrectionLevel: qrLogo ? 'H' : 'M'
         });
         return dataURL;
     } catch (error) {
@@ -46,7 +46,7 @@ const generateQRDataURL = async (account) => {
  * Generate a PDF for a single account card - Standard CR80 card size
  * Includes both front and back of the card
  */
-export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
+export const generateAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple', qrLogo = null) => {
     const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -54,7 +54,7 @@ export const generateAccountPDF = async (account, batchNumber = 1, customLogo = 
     });
 
     // Generate front card content only (card back is downloaded separately)
-    await generateCardContent(pdf, account, batchNumber, customLogo, cardColor);
+    await generateCardContent(pdf, account, batchNumber, customLogo, cardColor, qrLogo);
 
     return pdf;
 };
@@ -63,7 +63,7 @@ export const generateAccountPDF = async (account, batchNumber = 1, customLogo = 
  * Generate the card content matching the preview exactly
  * Standard CR80 card: 85.6mm x 53.98mm
  */
-const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = null, cardColor = 'blue') => {
+const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = null, cardColor = 'blue', qrLogo = null) => {
     const width = pdf.internal.pageSize.getWidth();
     const height = pdf.internal.pageSize.getHeight();
     const cardPadding = 2; // Padding from edge to show rounded corners
@@ -110,8 +110,17 @@ const generateCardContent = async (pdf, account, batchNumber = 1, customLogo = n
 
     // Generate and add real QR code
     try {
-        const qrDataURL = await generateQRDataURL(account);
+        const qrDataURL = await generateQRDataURL(account, qrLogo);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
+        // Overlay QR logo if provided
+        if (qrLogo) {
+            const logoSize = qrSize * 0.25;
+            const logoPadding = 0.5;
+            // White background behind logo
+            pdf.setFillColor(255, 255, 255);
+            pdf.rect(qrX + (qrSize - logoSize) / 2 - logoPadding, qrY + (qrSize - logoSize) / 2 - logoPadding, logoSize + logoPadding * 2, logoSize + logoPadding * 2, 'F');
+            pdf.addImage(qrLogo, 'PNG', qrX + (qrSize - logoSize) / 2, qrY + (qrSize - logoSize) / 2, logoSize, logoSize);
+        }
     } catch (error) {
         // Fallback: draw empty QR placeholder box
         pdf.setDrawColor(0, 0, 0);
@@ -368,8 +377,8 @@ export const generateMultipleAccountsPDF = async (accounts, onProgress, batchNum
 /**
  * Download a single account as PDF
  */
-export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple') => {
-    const pdf = await generateAccountPDF(account, batchNumber, customLogo, websiteDomain, cardColor, cardBackLogo, accountIdType);
+export const downloadAccountPDF = async (account, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', cardBackLogo = null, accountIdType = 'apple', qrLogo = null) => {
+    const pdf = await generateAccountPDF(account, batchNumber, customLogo, websiteDomain, cardColor, cardBackLogo, accountIdType, qrLogo);
     pdf.save(`account-${account.username || account.email.split('@')[0]}-${account.serialNumber}.pdf`);
 };
 
@@ -427,7 +436,7 @@ const calculatePrintLayout = (boardWidth, boardHeight) => {
  * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  * @returns {Promise<Blob>} PDF as blob
  */
-export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height) => {
+export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
     const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
     const width = boardWidth;
     const height = boardHeight;
@@ -470,7 +479,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
             const y = startY + row * (cardHeight + margin);
 
             // Draw card at calculated position
-            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor);
+            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, qrLogo);
 
             if (onProgress) {
                 onProgress({
@@ -494,7 +503,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
 /**
  * Draw a single card at a specific position on the print sheet
  */
-const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, cardColor) => {
+const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, cardColor, qrLogo = null) => {
     const cardPadding = 1.5;
     const cornerRadius = 2.5;
     const CARD_COLORS = {
@@ -536,8 +545,16 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
 
     // QR Code using API URL with access token
     try {
-        const qrDataURL = await generateQRDataURL(account);
+        const qrDataURL = await generateQRDataURL(account, qrLogo);
         pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
+        // Overlay QR logo if provided
+        if (qrLogo) {
+            const logoSize = qrSize * 0.25;
+            const logoPadding = 0.4;
+            pdf.setFillColor(255, 255, 255);
+            pdf.rect(qrX + (qrSize - logoSize) / 2 - logoPadding, qrY + (qrSize - logoSize) / 2 - logoPadding, logoSize + logoPadding * 2, logoSize + logoPadding * 2, 'F');
+            pdf.addImage(qrLogo, 'PNG', qrX + (qrSize - logoSize) / 2, qrY + (qrSize - logoSize) / 2, logoSize, logoSize);
+        }
     } catch (error) {
         pdf.setDrawColor(0, 0, 0);
         pdf.setLineWidth(0.2);
@@ -667,8 +684,8 @@ const drawDefaultIconSmall = (pdf, x, y, size) => {
  * @param {number} boardWidth - Custom board width in mm (default: 900mm = 90cm)
  * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  */
-export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height) => {
-    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight);
+export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
+    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight, qrLogo);
 
     // Create download link
     const url = URL.createObjectURL(blob);

@@ -87,6 +87,7 @@ const StoreManagement = () => {
     // Card customization settings
     const [customLogo, setCustomLogo] = useState(null);
     const [cardBackLogo, setCardBackLogo] = useState(null);
+    const [qrLogo, setQrLogo] = useState(null);
     const [cardColor, setCardColor] = useState('blue');
     const [accountIdType, setAccountIdType] = useState('apple'); // 'apple' or 'google'
 
@@ -269,7 +270,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetPDF(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, undefined, cardColor, widthMm, heightMm);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo);
         } catch (err) {
             console.error('Print sheet export failed:', err);
             setError('Failed to export print sheet');
@@ -318,7 +319,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetPDF(batch.cards, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, undefined, cardColor, widthMm, heightMm);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo);
         } catch (err) {
             console.error('Batch print sheet export failed:', err);
             setError('Failed to export batch print sheet');
@@ -416,6 +417,24 @@ const StoreManagement = () => {
         }
     };
 
+    const handleQrLogoUpload = (event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            if (!file.type.startsWith('image/')) {
+                setError('Please upload an image file');
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                setError('QR logo must be under 2MB');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => setQrLogo(e.target.result);
+            reader.readAsDataURL(file);
+        }
+        event.target.value = '';
+    };
+
     const openEditForm = (store) => {
         setEditingStore(store);
         setFormData({
@@ -440,7 +459,7 @@ const StoreManagement = () => {
         try {
             await downloadAccountCardsImagesZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, customLogo, cardColor);
+            }, customLogo, cardColor, qrLogo);
         } catch (err) {
             console.error('ZIP images export failed:', err);
             setError('Failed to export ZIP images');
@@ -494,7 +513,7 @@ const StoreManagement = () => {
             setExportProgress({ current: 0, total: cardsToExport.length, percentage: 0, status: 'creating-zip-images' });
             await downloadAccountCardsImagesZip(cardsToExport, (progress) => {
                 setExportProgress(progress);
-            }, customLogo, cardColor);
+            }, customLogo, cardColor, qrLogo);
         } catch (err) {
             console.error('Batch ZIP images export failed:', err);
             setError('Failed to export batch ZIP images');
@@ -1609,9 +1628,47 @@ const StoreManagement = () => {
                                                 </button>
                                             )}
                                         </div>
+                                        {/* QR Logo Upload */}
+                                        <label style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 'var(--spacing-xs)',
+                                            padding: 'var(--spacing-xs) var(--spacing-sm)',
+                                            background: qrLogo ? 'rgba(0, 122, 255, 0.15)' : 'var(--color-bg-tertiary)',
+                                            borderRadius: 'var(--border-radius-sm)',
+                                            cursor: 'pointer',
+                                            fontSize: 'var(--font-size-xs)',
+                                            color: qrLogo ? 'var(--color-accent-blue)' : 'var(--color-text-secondary)'
+                                        }}>
+                                            <Upload size={14} />
+                                            {qrLogo ? 'QR Logo ✓' : 'QR Logo'}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleQrLogoUpload}
+                                                style={{ display: 'none' }}
+                                            />
+                                        </label>
+                                        {qrLogo && (
+                                            <button
+                                                onClick={() => setQrLogo(null)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: 'var(--spacing-xs)',
+                                                    background: 'rgba(255, 59, 48, 0.1)',
+                                                    border: 'none',
+                                                    borderRadius: 'var(--border-radius-sm)',
+                                                    cursor: 'pointer',
+                                                    color: 'var(--color-accent-red)'
+                                                }}
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
                                     </Card.Header>
                                     <Card.Body style={{ padding: 0 }}>
-                                        <AccountCard account={selectedPreviewCard} customLogo={customLogo} cardColor={cardColor} />
+                                        <AccountCard account={selectedPreviewCard} customLogo={customLogo} cardColor={cardColor} qrLogo={qrLogo} />
                                     </Card.Body>
                                 </Card>
 
@@ -1791,7 +1848,7 @@ const StoreManagement = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        downloadAccountPDF(card, 1, customLogo, undefined, cardColor);
+                                                        downloadAccountPDF(card, 1, customLogo, undefined, cardColor, undefined, undefined, qrLogo);
                                                     }}
                                                     style={{
                                                         display: 'flex',

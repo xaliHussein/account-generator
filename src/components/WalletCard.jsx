@@ -6,7 +6,7 @@ import QRCode from 'react-qr-code';
  * Dark tech-themed Wallet style card with QR code
  * Supports Apple Wallet and Google Wallet branding
  */
-const WalletCard = ({ card, showQR = true, walletType = 'apple' }) => {
+const WalletCard = ({ card, showQR = true, walletType = 'apple', qrLogo = null }) => {
     // Use frontend URL for QR code so it opens the wallet card view page
     const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://alishaker.it.com');
     const qrUrl = `${FRONTEND_URL}/#/wallet/${card.access_token}`;
@@ -46,15 +46,35 @@ const WalletCard = ({ card, showQR = true, walletType = 'apple' }) => {
                     >
                         امسح هنا
                     </div>
-                    <div className="wallet-card-qr-container">
+                    <div className="wallet-card-qr-container" style={{ position: 'relative' }}>
                         {showQR ? (
-                            <QRCode
-                                value={qrUrl}
-                                size={110}
-                                level="M"
-                                bgColor="#FFFFFF"
-                                fgColor="#000000"
-                            />
+                            <>
+                                <QRCode
+                                    value={qrUrl}
+                                    size={110}
+                                    level={qrLogo ? "H" : "M"}
+                                    bgColor="#FFFFFF"
+                                    fgColor="#000000"
+                                />
+                                {qrLogo && (
+                                    <img
+                                        src={qrLogo}
+                                        alt="QR Logo"
+                                        style={{
+                                            position: 'absolute',
+                                            top: '50%',
+                                            left: '50%',
+                                            transform: 'translate(-50%, -50%)',
+                                            width: '24px',
+                                            height: '24px',
+                                            borderRadius: '4px',
+                                            background: 'white',
+                                            padding: '2px',
+                                            objectFit: 'contain'
+                                        }}
+                                    />
+                                )}
+                            </>
                         ) : (
                             <div className="wallet-card-qr-placeholder" style={{ width: '110px', height: '110px' }}></div>
                         )}

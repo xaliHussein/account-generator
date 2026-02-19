@@ -127,7 +127,7 @@ const drawCardOnPDF = (pdf, canvas, x, y, width, height) => {
 /**
  * Generate a single wallet card PDF (front only)
  */
-export const generateWalletCardPDF = async (card, printDate = null, walletType = 'apple') => {
+export const generateWalletCardPDF = async (card, printDate = null, walletType = 'apple', qrLogo = null) => {
     const WalletCard = await getWalletCardComponent();
 
     const pdf = new jsPDF({
@@ -140,7 +140,8 @@ export const generateWalletCardPDF = async (card, printDate = null, walletType =
         card,
         showQR: true,
         printDate,
-        walletType
+        walletType,
+        qrLogo
     }]);
 
     drawCardOnPDF(pdf, canvas, 0, 0, CARD_DIMENSIONS.cardWidth, CARD_DIMENSIONS.cardHeight);
@@ -151,8 +152,8 @@ export const generateWalletCardPDF = async (card, printDate = null, walletType =
 /**
  * Download a single wallet card as PDF
  */
-export const downloadWalletCardPDF = async (card, printDate = null, walletType = 'apple') => {
-    const pdf = await generateWalletCardPDF(card, printDate, walletType);
+export const downloadWalletCardPDF = async (card, printDate = null, walletType = 'apple', qrLogo = null) => {
+    const pdf = await generateWalletCardPDF(card, printDate, walletType, qrLogo);
     pdf.save(`wallet-card-${card.serial_number || card.id}.pdf`);
 };
 
@@ -160,7 +161,7 @@ export const downloadWalletCardPDF = async (card, printDate = null, walletType =
  * Generate wallet card print sheet PDF - OPTIMIZED
  * Uses batch rendering for much faster generation
  */
-export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic') => {
+export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
     const WalletCard = await getWalletCardComponent(cardDesign);
 
@@ -196,7 +197,8 @@ export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate =
             card,
             showQR: true,
             printDate,
-            walletType
+            walletType,
+            qrLogo
         }));
 
         // Render entire batch at once
@@ -253,8 +255,8 @@ export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate =
 /**
  * Download wallet card print sheet PDF
  */
-export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic') => {
-    const blob = await generateWalletPrintSheetPDF(cards, onProgress, printDate, boardWidth, boardHeight, walletType, cardDesign);
+export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    const blob = await generateWalletPrintSheetPDF(cards, onProgress, printDate, boardWidth, boardHeight, walletType, cardDesign, qrLogo);
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
