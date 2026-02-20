@@ -669,7 +669,7 @@ const WalletStoreManagement = () => {
             // If fetching required logic (similar to other batch exports) - simplifying here assuming generic fetch or reusing logic
             // But strict implementation requires checking partial status like others:
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
                     cardsToExport = response.cards;
                     setCardsByBatch(prev => ({
@@ -707,7 +707,7 @@ const WalletStoreManagement = () => {
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
                 // Fetch full batch
-                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
                     cardsToExport = response.cards;
                     // Update local state to cache it? Optional, but good for UX
@@ -746,7 +746,7 @@ const WalletStoreManagement = () => {
             // Check if we need to fetch the full batch
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getWalletBatchCards(selectedStore.id, batchId);
+                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
                     cardsToExport = response.cards;
                     // Update local state
