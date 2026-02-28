@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores } from '../services/api';
+import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores, getSettings, updateSettings } from '../services/api';
 import { searchWalletPhone, getWalletRecentScans } from '../services/walletApi';
-import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown } from 'lucide-react';
+import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown, MessageCircle } from 'lucide-react';
 
 /**
  * Dashboard Component
@@ -42,6 +42,10 @@ const Dashboard = () => {
     const [activityTotalPages, setActivityTotalPages] = useState(1);
     const ACTIVITY_PER_PAGE = 10;
 
+    // WhatsApp toggle state
+    const [showWhatsApp, setShowWhatsApp] = useState(true);
+    const [settingsLoading, setSettingsLoading] = useState(false);
+
     // Navigation handler based on card type
     const handleNavigateToStores = () => {
         navigate(cardType === 'wallet' ? '/sys-admin/wallet-stores' : '/sys-admin/stores');
@@ -76,6 +80,32 @@ const Dashboard = () => {
     useEffect(() => {
         localStorage.setItem('dashboardCardType', cardType);
     }, [cardType]);
+
+    // Load global settings on mount
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const data = await getSettings();
+                setShowWhatsApp(data.show_whatsapp_button !== false);
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+            }
+        };
+        loadSettings();
+    }, []);
+
+    const handleToggleWhatsApp = async () => {
+        setSettingsLoading(true);
+        try {
+            const newValue = !showWhatsApp;
+            await updateSettings({ show_whatsapp_button: newValue });
+            setShowWhatsApp(newValue);
+        } catch (err) {
+            console.error('Failed to update settings:', err);
+        } finally {
+            setSettingsLoading(false);
+        }
+    };
 
     const loadDashboardData = async (page = 1) => {
         setLoading(true);
@@ -254,6 +284,51 @@ const Dashboard = () => {
                         Wallet Cards
                     </button>
                 </div>
+            </div>
+
+            {/* Global Settings Toggle */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 'var(--spacing-md)',
+                background: 'var(--color-bg-secondary)',
+                borderRadius: 'var(--border-radius-lg)',
+                border: '1px solid var(--border-color)',
+                marginBottom: 'var(--spacing-lg)'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                    <MessageCircle size={18} style={{ color: '#25D366' }} />
+                    <span style={{ fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-sm)' }}>Show WhatsApp Button</span>
+                    <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>(Visible on card view pages)</span>
+                </div>
+                <button
+                    onClick={handleToggleWhatsApp}
+                    disabled={settingsLoading}
+                    style={{
+                        position: 'relative',
+                        width: '48px',
+                        height: '26px',
+                        borderRadius: '13px',
+                        border: 'none',
+                        cursor: settingsLoading ? 'wait' : 'pointer',
+                        background: showWhatsApp ? '#25D366' : 'var(--color-bg-tertiary)',
+                        transition: 'background 0.3s ease',
+                        padding: 0
+                    }}
+                >
+                    <div style={{
+                        position: 'absolute',
+                        top: '3px',
+                        left: showWhatsApp ? '25px' : '3px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: 'white',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        transition: 'left 0.3s ease'
+                    }} />
+                </button>
             </div>
 
             {/* Stats Cards - Different for regular vs wallet */}

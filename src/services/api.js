@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // API base URL - update this for production
-// const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://alishaker.it.com/api';
+// const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -334,6 +334,32 @@ export const getActivatedCards = async (page = 1, perPage = 12, sort = 'newest',
  */
 export const deactivateCard = async (cardId) => {
     const response = await api.post(`/api/activated-cards/${cardId}/deactivate`);
+    return response.data;
+};
+
+// ==================== Settings ====================
+
+/**
+ * Get settings (authenticated - for dashboard)
+ */
+export const getSettings = async () => {
+    const response = await api.get('/api/settings');
+    return response.data;
+};
+
+/**
+ * Update settings (authenticated - for dashboard)
+ */
+export const updateSettings = async (settings) => {
+    const response = await api.post('/api/settings', settings);
+    return response.data;
+};
+
+/**
+ * Get public settings (unauthenticated - for card views)
+ */
+export const getPublicSettings = async () => {
+    const response = await api.get('/api/public-settings');
     return response.data;
 };
 

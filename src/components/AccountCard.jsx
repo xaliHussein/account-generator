@@ -13,7 +13,8 @@ const AccountCard = ({
     batchNumber = 1,
     customLogo = null,
     cardColor = 'blue',
-    qrLogo = null
+    qrLogo = null,
+    customNote = ''
 }) => {
     // Card color mapping to match PDF
     const CARD_COLORS = {
@@ -138,6 +139,18 @@ const AccountCard = ({
                     <span className="apple-serial-label">SN:</span>
                     <span className="apple-serial-value">{serialNumber}</span>
                 </div>
+
+                {/* Custom Note (between SN and VIP badge) */}
+                {customNote && customNote.trim() && (
+                    <div style={{
+                        fontSize: '9px',
+                        fontWeight: 'bold',
+                        color: '#646464',
+                        marginTop: '1px'
+                    }}>
+                        {customNote.trim()}
+                    </div>
+                )}
 
                 {/* Custom Logo or App Store Icon & Badge */}
                 <div className="apple-footer-right">

@@ -101,6 +101,9 @@ const StoreManagement = () => {
     // Card Back count for print sheet (defaults to generated cards count)
     const [cardBackCount, setCardBackCount] = useState('');
 
+    // Custom note for card exports (between SN and VIP-BATCH)
+    const [customNote, setCustomNote] = useState('');
+
     const [exportProgress, setExportProgress] = useState(null);
 
     // Helper function to format large numbers (1000 -> 1k, 1000000 -> 1M)
@@ -257,7 +260,7 @@ const StoreManagement = () => {
         try {
             await downloadAccountsZip(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, customLogo, cardColor, cardBackLogo);
+            }, customLogo, cardColor, cardBackLogo, undefined, undefined, customNote);
         } catch (err) {
             console.error('Export failed:', err);
             setError('Failed to export ZIP');
@@ -280,7 +283,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetPDF(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
             console.error('Print sheet export failed:', err);
             setError('Failed to export print sheet');
@@ -303,7 +306,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetImage(generatedCards, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, cardColor, widthMm, heightMm, qrLogo);
+            }, 1, customLogo, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
             console.error('Print sheet image export failed:', err);
             setError('Failed to export print sheet image');
@@ -1708,6 +1711,34 @@ const StoreManagement = () => {
                                             }}
                                         />
                                     </div>
+                                </div>
+
+                                {/* Custom Note Input */}
+                                <div style={{
+                                    padding: 'var(--spacing-md)',
+                                    background: 'var(--color-bg-secondary)',
+                                    borderRadius: 'var(--border-radius-lg)',
+                                    border: '1px solid var(--border-color)'
+                                }}>
+                                    <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-secondary)', display: 'block', marginBottom: 'var(--spacing-xs)' }}>
+                                        Custom Note (Optional — appears between SN and VIP-BATCH)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Store name, promo text..."
+                                        value={customNote}
+                                        onChange={(e) => setCustomNote(e.target.value)}
+                                        maxLength={50}
+                                        style={{
+                                            width: '100%',
+                                            padding: 'var(--spacing-sm) var(--spacing-md)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--border-radius-md)',
+                                            background: 'var(--color-bg-primary)',
+                                            fontSize: 'var(--font-size-md)',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
                                 </div>
 
                                 {/* Card Preview & Settings */}

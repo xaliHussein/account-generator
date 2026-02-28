@@ -437,7 +437,7 @@ const calculatePrintLayout = (boardWidth, boardHeight) => {
  * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  * @returns {Promise<Blob>} PDF as blob
  */
-export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
+export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null, customNote = '') => {
     const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const width = boardWidth;
     const height = boardHeight;
@@ -480,7 +480,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
             const y = startY + row * (cardHeight + marginY);
 
             // Draw card at calculated position
-            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, qrLogo);
+            await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, qrLogo, customNote);
 
             if (onProgress) {
                 onProgress({
@@ -504,7 +504,7 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
 /**
  * Draw a single card at a specific position on the print sheet
  */
-const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, cardColor, qrLogo = null) => {
+const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, customLogo, cardColor, qrLogo = null, customNote = '') => {
     const cardPadding = 1.5;
     const cornerRadius = 2.5;
     const CARD_COLORS = {
@@ -651,6 +651,14 @@ const drawCardOnSheet = async (pdf, account, x, y, width, height, batchNumber, c
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(0, 0, 0);
     pdf.text(serialNumber, qrX, bottomY + 3);
+
+    // Custom Note (between SN and VIP-BATCH)
+    if (customNote && customNote.trim()) {
+        pdf.setFontSize(6);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(customNote.trim(), qrX + 4, bottomY + 3);
+    }
 };
 
 /**
@@ -685,8 +693,8 @@ const drawDefaultIconSmall = (pdf, x, y, size) => {
  * @param {number} boardWidth - Custom board width in mm (default: 900mm = 90cm)
  * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  */
-export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
-    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight, qrLogo);
+export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null, customNote = '') => {
+    const blob = await generatePrintSheetPDF(accounts, onProgress, batchNumber, customLogo, websiteDomain, cardColor, boardWidth, boardHeight, qrLogo, customNote);
 
     // Create download link
     const url = URL.createObjectURL(blob);
@@ -1035,7 +1043,7 @@ export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress,
  * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
  * @param {string} qrLogo - QR code logo data URL
  */
-export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
+export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null, customNote = '') => {
     // Import required renderers
     const { 
         ACCOUNT_CARD_WIDTH_PX, 
@@ -1090,7 +1098,8 @@ export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber 
             batchNumber,
             customLogo,
             cardColor,
-            qrLogo
+            qrLogo,
+            customNote
         }));
 
         const batchCanvases = await renderCardBatchToImages(
