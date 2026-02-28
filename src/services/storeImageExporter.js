@@ -16,8 +16,8 @@ const WALLET_CARD_HEIGHT_PX = 200;
 // AccountCard and CardBack dimensions (standard credit card aspect ratio)
 // CR80 standard: 85.6mm × 53.98mm ≈ 1.586:1 ratio
 // Using 400px width for good quality at 3x render scale (1200px final)
-const ACCOUNT_CARD_WIDTH_PX = 400;
-const ACCOUNT_CARD_HEIGHT_PX = 252;
+export const ACCOUNT_CARD_WIDTH_PX = 400;
+export const ACCOUNT_CARD_HEIGHT_PX = 252;
 
 // Batch size for rendering
 const BATCH_SIZE = 10;
@@ -26,7 +26,7 @@ const BATCH_SIZE = 10;
 const RENDER_SCALE = 3;
 
 // CSS Overrides to ensure AccountCard fits within the CR80 dimensions
-const ACCOUNT_CARD_CSS_OVERRIDES = `
+export const ACCOUNT_CARD_CSS_OVERRIDES = `
     .account-card-preview.apple-style {
         max-width: none !important;
         width: 100% !important;
@@ -88,7 +88,7 @@ const getCardBackComponent = async () => {
  * @param {Function} onItemProgress - Progress callback
  * @param {string} cssOverrides - Optional CSS to inject into the export container
  */
-const renderCardBatchToImages = async (Component, cardsProps, dimensions, onItemProgress, cssOverrides = '') => {
+export const renderCardBatchToImages = async (Component, cardsProps, dimensions, onItemProgress, cssOverrides = '') => {
     const canvases = [];
 
     // Create a single container for all cards in the batch

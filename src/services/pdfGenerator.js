@@ -408,16 +408,17 @@ const DEFAULT_BOARD = {
 const CARD_DIMENSIONS = {
     cardWidth: 85.6,
     cardHeight: 53.98,
-    margin: 2,   // Small margin between cards
+    marginY: 2,  // Top and bottom margin (vertical space)
+    marginX: 10, // Right and left margin (horizontal space)
 };
 
 /**
  * Calculate print sheet layout based on board dimensions
  */
 const calculatePrintLayout = (boardWidth, boardHeight) => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
-    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
-    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + marginX));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + marginY));
     const cardsPerPage = cardsPerRow * cardsPerCol;
     return { cardsPerRow, cardsPerCol, cardsPerPage };
 };
@@ -437,14 +438,14 @@ const calculatePrintLayout = (boardWidth, boardHeight) => {
  * @returns {Promise<Blob>} PDF as blob
  */
 export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 1, customLogo = null, websiteDomain = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const width = boardWidth;
     const height = boardHeight;
     const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
 
     // Calculate starting positions to center the grid on the page
-    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
-    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
     const startX = (width - gridWidth) / 2;
     const startY = (height - gridHeight) / 2;
 
@@ -475,8 +476,8 @@ export const generatePrintSheetPDF = async (accounts, onProgress, batchNumber = 
             // Calculate position in grid
             const col = i % cardsPerRow;
             const row = Math.floor(i / cardsPerRow);
-            const x = startX + col * (cardWidth + margin);
-            const y = startY + row * (cardHeight + margin);
+            const x = startX + col * (cardWidth + marginX);
+            const y = startY + row * (cardHeight + marginY);
 
             // Draw card at calculated position
             await drawCardOnSheet(pdf, account, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, qrLogo);
@@ -714,14 +715,14 @@ export const downloadPrintSheetPDF = async (accounts, onProgress, batchNumber = 
  * @returns {Promise<Blob>} PDF as blob
  */
 export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const width = boardWidth;
     const height = boardHeight;
     const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(width, height);
 
     // Calculate starting positions to center the grid on the page
-    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
-    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
     const startX = (width - gridWidth) / 2;
     const startY = (height - gridHeight) / 2;
 
@@ -751,8 +752,8 @@ export const generateCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
             // Calculate position in grid
             const col = i % cardsPerRow;
             const row = Math.floor(i / cardsPerRow);
-            const x = startX + col * (cardWidth + margin);
-            const y = startY + row * (cardHeight + margin);
+            const x = startX + col * (cardWidth + marginX);
+            const y = startY + row * (cardHeight + marginY);
 
             // Draw card back at calculated position
             await drawCardBackOnSheet(pdf, x, y, cardWidth, cardHeight, batchNumber, customLogo, cardColor, accountIdType);
@@ -872,6 +873,156 @@ export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
 };
 
 /**
+ * Download card backs print sheet as a high-resolution PNG image
+ * Renders CardBack components in a grid layout matching the PDF print sheet
+ * 
+ * @param {number} cardBackCount - Number of card backs to generate
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} cardColor - Card color theme
+ * @param {string} accountIdType - 'apple' or 'google'
+ * @param {number} boardWidth - Custom board width in mm (default: 600mm = 60cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 900mm = 90cm)
+ */
+export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
+    // Import required renderers
+    const { 
+        ACCOUNT_CARD_WIDTH_PX, 
+        ACCOUNT_CARD_HEIGHT_PX, 
+        ACCOUNT_CARD_CSS_OVERRIDES, 
+        renderCardBatchToImages 
+    } = await import('./storeImageExporter');
+    const CardBack = (await import('../components/CardBack')).default;
+
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
+    const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(boardWidth, boardHeight);
+
+    // MM to PX calculation logic matching wallet export
+    const RENDER_SCALE = 3; 
+    const cardCanvasWidth = ACCOUNT_CARD_WIDTH_PX * RENDER_SCALE;
+    
+    // Calculate board canvas size based on card canvas size and layout ratios
+    const pxPerMM = cardCanvasWidth / cardWidth; 
+    const boardCanvasWidth = Math.round(boardWidth * pxPerMM);
+    const boardCanvasHeight = Math.round(boardHeight * pxPerMM);
+    const marginXPx = Math.round(marginX * pxPerMM);
+    const marginYPx = Math.round(marginY * pxPerMM);
+    
+    // Calculate grid dimensions in MM
+    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
+    const startXMM = (boardWidth - gridWidthMM) / 2;
+    const startYMM = (boardHeight - gridHeightMM) / 2;
+
+    const startXPx = Math.round(startXMM * pxPerMM);
+    const startYPx = Math.round(startYMM * pxPerMM);
+
+    const totalPages = Math.ceil(cardBackCount / cardsPerPage);
+
+    // 1. Render all cards to individual canvases in batches
+    const BATCH_SIZE = 10;
+    const allCardImages = [];
+    let processedCount = 0;
+
+    if (onProgress) {
+        onProgress({ current: 0, total: cardBackCount, percentage: 0, status: 'creating-image' });
+    }
+
+    // Since card backs are identical, we only need to render ONE and duplicate it!
+    // However, the batch number might theoretically change if we wanted dynamic badges,
+    // but here it's static per batch.
+    const backProps = {
+        batchNumber,
+        customLogo,
+        cardColor,
+        accountIdType
+    };
+
+    // Render it once for efficiency since all back cards are the same
+    const singleCanvasBatch = await renderCardBatchToImages(
+        CardBack,
+        [backProps],
+        { width: ACCOUNT_CARD_WIDTH_PX, height: ACCOUNT_CARD_HEIGHT_PX },
+        (itemIndex) => {},
+        ACCOUNT_CARD_CSS_OVERRIDES
+    );
+    const templateCanvas = singleCanvasBatch[0];
+
+    // Duplicate it virtually
+    for (let i = 0; i < cardBackCount; i++) {
+        allCardImages.push(templateCanvas);
+        processedCount++;
+        if (onProgress && processedCount % 5 === 0) {
+            onProgress({
+                current: processedCount,
+                total: cardBackCount,
+                percentage: Math.round((processedCount / cardBackCount) * 80),
+                status: 'creating-image'
+            });
+        }
+    }
+
+    // 2. Composite onto boards and trigger downloads
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cardBackCount);
+
+        // Create large canvas for the page
+        const canvas = document.createElement('canvas');
+        canvas.width = boardCanvasWidth;
+        canvas.height = boardCanvasHeight;
+        const ctx = canvas.getContext('2d');
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, boardCanvasWidth, boardCanvasHeight);
+
+        // Draw each card at calculated position
+        for (let i = pageStartIndex; i < pageEndIndex; i++) {
+            const localIndex = i - pageStartIndex;
+            const col = localIndex % cardsPerRow;
+            const row = Math.floor(localIndex / cardsPerRow);
+            
+            const x = startXPx + col * Math.round((cardWidth + marginX) * pxPerMM);
+            const y = startYPx + row * Math.round((cardHeight + marginY) * pxPerMM);
+            
+            ctx.drawImage(
+                allCardImages[i], 
+                0, 0, allCardImages[i].width, allCardImages[i].height,
+                x, y, Math.round(cardWidth * pxPerMM), Math.round(cardHeight * pxPerMM)
+            );
+        }
+
+        if (onProgress) {
+            onProgress({
+                current: cardBackCount,
+                total: cardBackCount,
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
+                status: 'creating-image'
+            });
+        }
+
+        // Download PNG
+        const dataURL = canvas.toDataURL('image/png', 1.0);
+        const link = document.createElement('a');
+        link.href = dataURL;
+        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
+        link.download = `card-backs-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Brief pause between downloads to prevent browser blocking multiple files
+        if (pageIndex < totalPages - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+};
+
+/**
  * Download print sheet as a high-resolution PNG image
  * Renders AccountCard components in a grid layout matching the PDF print sheet
  * 
@@ -885,122 +1036,142 @@ export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
  * @param {string} qrLogo - QR code logo data URL
  */
 export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
-    const html2canvas = (await import('html2canvas')).default;
-    const ReactDOM = (await import('react-dom/client')).default;
-    const React = (await import('react')).default;
+    // Import required renderers
+    const { 
+        ACCOUNT_CARD_WIDTH_PX, 
+        ACCOUNT_CARD_HEIGHT_PX, 
+        ACCOUNT_CARD_CSS_OVERRIDES, 
+        renderCardBatchToImages 
+    } = await import('./storeImageExporter');
     const AccountCard = (await import('../components/AccountCard')).default;
 
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(boardWidth, boardHeight);
 
-    // MM to PX conversion: 1mm ≈ 3.78px at 96 DPI, we use a scale factor for high-res
-    const MM_TO_PX = 3.78;
-    const SCALE = 2; // 2x for high-res output
+    // MM to PX calculation logic matching wallet export
+    // The render scale used in storeImageExporter is typically 3
+    const RENDER_SCALE = 3; 
+    const cardCanvasWidth = ACCOUNT_CARD_WIDTH_PX * RENDER_SCALE;
+    
+    // Calculate board canvas size based on card canvas size and layout ratios
+    const pxPerMM = cardCanvasWidth / cardWidth; 
+    const boardCanvasWidth = Math.round(boardWidth * pxPerMM);
+    const boardCanvasHeight = Math.round(boardHeight * pxPerMM);
+    const marginXPx = Math.round(marginX * pxPerMM);
+    const marginYPx = Math.round(marginY * pxPerMM);
+    
+    // Calculate grid dimensions in MM
+    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
+    const startXMM = (boardWidth - gridWidthMM) / 2;
+    const startYMM = (boardHeight - gridHeightMM) / 2;
 
-    const containerWidthPx = boardWidth * MM_TO_PX;
-    const containerHeightPx = boardHeight * MM_TO_PX;
-    const cardWidthPx = cardWidth * MM_TO_PX;
-    const cardHeightPx = cardHeight * MM_TO_PX;
-    const marginPx = margin * MM_TO_PX;
-
-    const gridWidth = cardsPerRow * cardWidthPx + (cardsPerRow - 1) * marginPx;
-    const gridHeight = cardsPerCol * cardHeightPx + (cardsPerCol - 1) * marginPx;
-    const startX = (containerWidthPx - gridWidth) / 2;
-    const startY = (containerHeightPx - gridHeight) / 2;
+    const startXPx = Math.round(startXMM * pxPerMM);
+    const startYPx = Math.round(startYMM * pxPerMM);
 
     const totalPages = Math.ceil(accounts.length / cardsPerPage);
 
+    // 1. Render all cards to individual canvases in batches
+    const BATCH_SIZE = 10;
+    const allCardImages = [];
+    let processedCount = 0;
+
+    if (onProgress) {
+        onProgress({ current: 0, total: accounts.length, percentage: 0, status: 'creating-image' });
+    }
+
+    for (let batchStart = 0; batchStart < accounts.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, accounts.length);
+        const batchAccounts = accounts.slice(batchStart, batchEnd);
+
+        const batchProps = batchAccounts.map(account => ({
+            account,
+            showQR: true,
+            batchNumber,
+            customLogo,
+            cardColor,
+            qrLogo
+        }));
+
+        const batchCanvases = await renderCardBatchToImages(
+            AccountCard,
+            batchProps,
+            { width: ACCOUNT_CARD_WIDTH_PX, height: ACCOUNT_CARD_HEIGHT_PX },
+            (itemIndex) => {
+                processedCount = batchStart + itemIndex;
+                if (onProgress) {
+                    onProgress({
+                        current: processedCount,
+                        total: accounts.length,
+                        percentage: Math.round((processedCount / accounts.length) * 80),
+                        status: 'creating-image'
+                    });
+                }
+            },
+            ACCOUNT_CARD_CSS_OVERRIDES
+        );
+
+        allCardImages.push(...batchCanvases);
+        await new Promise(resolve => setTimeout(resolve, 10)); // UI breather
+    }
+
+    // 2. Composite onto boards and trigger downloads
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const pageStartIndex = pageIndex * cardsPerPage;
         const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, accounts.length);
-        const accountsOnPage = accounts.slice(pageStartIndex, pageEndIndex);
 
-        // Create container
-        const container = document.createElement('div');
-        container.style.cssText = `
-            position: fixed; left: -99999px; top: 0;
-            width: ${containerWidthPx}px; height: ${containerHeightPx}px;
-            background: white; overflow: hidden;
-        `;
+        // Create large canvas for the page
+        const canvas = document.createElement('canvas');
+        canvas.width = boardCanvasWidth;
+        canvas.height = boardCanvasHeight;
+        const ctx = canvas.getContext('2d');
 
-        // Add CSS overrides
-        const style = document.createElement('style');
-        style.textContent = `
-            .print-sheet-card .account-card-preview.apple-style {
-                max-width: none !important;
-                width: 100% !important;
-                height: 100% !important;
-                box-shadow: none !important;
-                border-radius: 8px !important;
-                overflow: hidden !important;
-            }
-        `;
-        container.appendChild(style);
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, boardCanvasWidth, boardCanvasHeight);
 
-        // Render each card at calculated position
-        for (let i = 0; i < accountsOnPage.length; i++) {
-            const account = accountsOnPage[i];
-            const col = i % cardsPerRow;
-            const row = Math.floor(i / cardsPerRow);
-            const x = startX + col * (cardWidthPx + marginPx);
-            const y = startY + row * (cardHeightPx + marginPx);
-
-            const cardDiv = document.createElement('div');
-            cardDiv.className = 'print-sheet-card';
-            cardDiv.style.cssText = `
-                position: absolute;
-                left: ${x}px; top: ${y}px;
-                width: ${cardWidthPx}px; height: ${cardHeightPx}px;
-            `;
-            container.appendChild(cardDiv);
-
-            const root = ReactDOM.createRoot(cardDiv);
-            root.render(React.createElement(AccountCard, {
-                account,
-                showQR: true,
-                batchNumber,
-                customLogo,
-                cardColor,
-                qrLogo,
-            }));
+        // Draw each card at calculated position
+        for (let i = pageStartIndex; i < pageEndIndex; i++) {
+            const localIndex = i - pageStartIndex;
+            const col = localIndex % cardsPerRow;
+            const row = Math.floor(localIndex / cardsPerRow);
+            
+            const x = startXPx + col * Math.round((cardWidth + marginX) * pxPerMM);
+            const y = startYPx + row * Math.round((cardHeight + marginY) * pxPerMM);
+            
+            ctx.drawImage(
+                allCardImages[i],
+                x, y,
+                Math.round(cardWidth * pxPerMM),
+                Math.round(cardHeight * pxPerMM)
+            );
         }
-
-        document.body.appendChild(container);
-
-        // Wait for rendering
-        await new Promise(resolve => setTimeout(resolve, 500));
 
         if (onProgress) {
             onProgress({
-                current: pageEndIndex,
+                current: accounts.length,
                 total: accounts.length,
-                percentage: Math.round((pageEndIndex / accounts.length) * 100),
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
                 status: 'creating-image'
             });
         }
 
-        // Capture canvas
-        const canvas = await html2canvas(container, {
-            scale: SCALE,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            width: containerWidthPx,
-            height: containerHeightPx,
-        });
-
-        document.body.removeChild(container);
-
-        // Download as PNG
-        const dataURL = canvas.toDataURL('image/png');
+        // Download PNG
+        const dataURL = canvas.toDataURL('image/png', 1.0);
         const link = document.createElement('a');
         link.href = dataURL;
         const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
         const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
-        link.download = `print-sheet-${accountsOnPage.length}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        // Brief pause between downloads to prevent browser blocking multiple files
+        if (pageIndex < totalPages - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
     }
 };
 
@@ -1014,5 +1185,6 @@ export default {
     downloadPrintSheetImage,
     generateCardBackPrintSheetPDF,
     downloadCardBackPrintSheetPDF,
+    downloadCardBackPrintSheetImage,
 };
 

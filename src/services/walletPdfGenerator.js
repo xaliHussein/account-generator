@@ -12,7 +12,8 @@ import React from 'react';
 const CARD_DIMENSIONS = {
     cardWidth: 85.6,
     cardHeight: 53.98,
-    margin: 2,
+    marginY: 2,  // Top and bottom margin (vertical space)
+    marginX: 10, // Right and left margin (horizontal space)
 };
 
 // Pixel dimensions matching the CSS (320x200px)
@@ -162,17 +163,17 @@ export const downloadWalletCardPDF = async (card, printDate = null, walletType =
  * Uses batch rendering for much faster generation
  */
 export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const WalletCard = await getWalletCardComponent(cardDesign);
 
     // Calculate layout
-    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
-    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + marginX));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + marginY));
     const cardsPerPage = cardsPerRow * cardsPerCol;
 
     // Center the grid
-    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
-    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
     const startX = (boardWidth - gridWidth) / 2;
     const startY = (boardHeight - gridHeight) / 2;
 
@@ -233,8 +234,8 @@ export const generateWalletPrintSheetPDF = async (cards, onProgress, printDate =
             const localIndex = i - pageStartIndex;
             const col = localIndex % cardsPerRow;
             const row = Math.floor(localIndex / cardsPerRow);
-            const x = startX + col * (cardWidth + margin);
-            const y = startY + row * (cardHeight + margin);
+            const x = startX + col * (cardWidth + marginX);
+            const y = startY + row * (cardHeight + marginY);
 
             drawCardOnPDF(pdf, allCardImages[i], x, y, cardWidth, cardHeight);
         }
@@ -273,17 +274,17 @@ export const downloadWalletPrintSheetPDF = async (cards, onProgress, printDate =
  * Generate wallet card backs print sheet PDF - OPTIMIZED
  */
 export const generateWalletCardBackPrintSheetPDF = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const WalletCardBack = await getWalletCardBackComponent(cardDesign);
 
     // Calculate layout
-    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
-    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + marginX));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + marginY));
     const cardsPerPage = cardsPerRow * cardsPerCol;
 
     // Center the grid
-    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
-    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const gridWidth = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeight = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
     const startX = (boardWidth - gridWidth) / 2;
     const startY = (boardHeight - gridHeight) / 2;
 
@@ -338,8 +339,8 @@ export const generateWalletCardBackPrintSheetPDF = async (cards, onProgress, boa
             const localIndex = i - pageStartIndex;
             const col = localIndex % cardsPerRow;
             const row = Math.floor(localIndex / cardsPerRow);
-            const x = startX + col * (cardWidth + margin);
-            const y = startY + row * (cardHeight + margin);
+            const x = startX + col * (cardWidth + marginX);
+            const y = startY + row * (cardHeight + marginY);
 
             drawCardOnPDF(pdf, allCardImages[i], x, y, cardWidth, cardHeight);
         }
@@ -375,20 +376,144 @@ export const downloadWalletCardBackPrintSheetPDF = async (cards, onProgress, boa
 };
 
 /**
+ * Download wallet card backs print sheet as a high-resolution PNG image
+ * Reuses renderCardBatchToImages to render individual card canvases, then composites them onto a large canvas
+ */
+export const downloadWalletCardBackPrintSheetImage = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
+    const WalletCardBackComponent = await getWalletCardBackComponent(cardDesign);
+
+    // Calculate layout (same as PDF)
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + marginX));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + marginY));
+    const cardsPerPage = cardsPerRow * cardsPerCol;
+
+    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
+    const startXMM = (boardWidth - gridWidthMM) / 2;
+    const startYMM = (boardHeight - gridHeightMM) / 2;
+
+    const totalPages = Math.ceil(cards.length / cardsPerPage);
+
+    // MM to PX: each card canvas is CARD_WIDTH_PX * RENDER_SCALE wide
+    const cardCanvasWidth = CARD_WIDTH_PX * RENDER_SCALE;
+    const cardCanvasHeight = CARD_HEIGHT_PX * RENDER_SCALE;
+
+    // Calculate board canvas size based on card canvas size and layout ratios
+    const pxPerMM = cardCanvasWidth / cardWidth; // px per mm based on rendered card size
+    const boardCanvasWidth = Math.round(boardWidth * pxPerMM);
+    const boardCanvasHeight = Math.round(boardHeight * pxPerMM);
+    const marginXPx = Math.round(marginX * pxPerMM);
+    const marginYPx = Math.round(marginY * pxPerMM);
+    const startXPx = Math.round(startXMM * pxPerMM);
+    const startYPx = Math.round(startYMM * pxPerMM);
+
+    // Render ALL card images first
+    const allCardImages = [];
+    let processedCount = 0;
+
+    if (onProgress) {
+        onProgress({ current: 0, total: cards.length, percentage: 0, status: 'creating-image' });
+    }
+
+    // Since card backs for wallets may have distinct QR or text (unlikely, but just in case we map them all)
+    // Actually wallet card backs in our system usually don't have unique data per card, but we follow the same pattern
+    // just in case they do. (If they are 100% identical we could render once, but rendering all is safer).
+    
+    // We'll render them in a single batch (or multiple batches if many)
+    for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
+        const batchCards = cards.slice(batchStart, batchEnd);
+
+        // Map props required by WalletCardBack/WalletCardBackLight
+        const batchProps = batchCards.map(card => ({
+            card,
+            cardDesign
+        }));
+
+        const batchCanvases = await renderCardBatchToImages(WalletCardBackComponent, batchProps, (itemIndex) => {
+            processedCount = batchStart + itemIndex;
+            if (onProgress) {
+                onProgress({
+                    current: processedCount,
+                    total: cards.length,
+                    percentage: Math.round((processedCount / cards.length) * 80),
+                    status: 'creating-image'
+                });
+            }
+        });
+
+        allCardImages.push(...batchCanvases);
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Now composite cards onto large canvases (one per page) and download
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cards.length);
+
+        // Create large canvas for the page
+        const canvas = document.createElement('canvas');
+        canvas.width = boardCanvasWidth;
+        canvas.height = boardCanvasHeight;
+        const ctx = canvas.getContext('2d');
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, boardCanvasWidth, boardCanvasHeight);
+
+        // Draw each card at calculated position
+        for (let i = pageStartIndex; i < pageEndIndex; i++) {
+            const localIndex = i - pageStartIndex;
+            const col = localIndex % cardsPerRow;
+            const row = Math.floor(localIndex / cardsPerRow);
+            const x = startXPx + col * (cardCanvasWidth + marginXPx);
+            const y = startYPx + row * (cardCanvasHeight + marginYPx);
+
+            ctx.drawImage(allCardImages[i], x, y, cardCanvasWidth, cardCanvasHeight);
+        }
+
+        if (onProgress) {
+            onProgress({
+                current: cards.length,
+                total: cards.length,
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
+                status: 'creating-image'
+            });
+        }
+
+        // Download as PNG
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
+        link.download = `wallet-card-backs-print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        if (pageIndex < totalPages - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+};
+
+/**
  * Download wallet card print sheet as a high-resolution PNG image
  * Reuses renderCardBatchToImages to render individual card canvases, then composites them onto a large canvas
  */
 export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
-    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const WalletCardComponent = await getWalletCardComponent(cardDesign);
 
     // Calculate layout (same as PDF)
-    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
-    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + marginX));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + marginY));
     const cardsPerPage = cardsPerRow * cardsPerCol;
 
-    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
-    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * marginX;
+    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * marginY;
     const startXMM = (boardWidth - gridWidthMM) / 2;
     const startYMM = (boardHeight - gridHeightMM) / 2;
 
@@ -436,7 +561,8 @@ export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate
     const pxPerMM = cardCanvasWidth / cardWidth; // px per mm based on rendered card size
     const boardCanvasWidth = Math.round(boardWidth * pxPerMM);
     const boardCanvasHeight = Math.round(boardHeight * pxPerMM);
-    const marginPx = Math.round(margin * pxPerMM);
+    const marginXPx = Math.round(marginX * pxPerMM);
+    const marginYPx = Math.round(marginY * pxPerMM);
     const startXPx = Math.round(startXMM * pxPerMM);
     const startYPx = Math.round(startYMM * pxPerMM);
 
@@ -459,8 +585,8 @@ export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate
             const localIndex = i - pageStartIndex;
             const col = localIndex % cardsPerRow;
             const row = Math.floor(localIndex / cardsPerRow);
-            const x = startXPx + col * (cardCanvasWidth + marginPx);
-            const y = startYPx + row * (cardCanvasHeight + marginPx);
+            const x = startXPx + col * (cardCanvasWidth + marginXPx);
+            const y = startYPx + row * (cardCanvasHeight + marginYPx);
 
             ctx.drawImage(allCardImages[i], x, y, cardCanvasWidth, cardCanvasHeight);
         }
@@ -495,4 +621,5 @@ export default {
     downloadWalletPrintSheetImage,
     generateWalletCardBackPrintSheetPDF,
     downloadWalletCardBackPrintSheetPDF,
+    downloadWalletCardBackPrintSheetImage,
 };
