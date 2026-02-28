@@ -1925,7 +1925,10 @@ const WalletStoreManagement = () => {
                                                 placeholder="e.g., MyPass"
                                                 value={generateData.password_prefix}
                                                 onChange={(e) => {
-                                                    const value = e.target.value.slice(0, 6);
+                                                    let value = e.target.value.slice(0, 6);
+                                                    if (value.length > 0) {
+                                                        value = value.charAt(0).toUpperCase() + value.slice(1);
+                                                    }
                                                     setGenerateData({ ...generateData, password_prefix: value });
                                                 }}
                                                 style={{ fontFamily: 'monospace' }}

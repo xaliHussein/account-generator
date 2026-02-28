@@ -57,6 +57,15 @@ const WalletCardView = () => {
 
     // Terms acceptance state
     const [termsAccepted, setTermsAccepted] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
+
+    // Color definitions matching the card colors
+    const CARD_COLORS = {
+        blue: '#0088CC',
+        black: '#1E1E1E'
+    };
+    const headerColor = card ? (CARD_COLORS[card.color] || CARD_COLORS.blue) : CARD_COLORS.blue;
+    const isApple = card?.email ? (card.email.toLowerCase().includes('@icloud.com') || card.email.toLowerCase().includes('@me.com') || card.email.toLowerCase().includes('@mac.com')) : true;
 
     // Video URL (placeholder - can be configured)
     const videoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'; // Replace with actual video
@@ -476,7 +485,7 @@ const WalletCardView = () => {
                             </div>
 
                             <div className="whatsapp-contact">
-                                <a href="https://wa.me/964771388813" target="_blank" rel="noopener noreferrer" className="whatsapp-link">
+                                <a href="https://wa.me/9647707771235" target="_blank" rel="noopener noreferrer" className="whatsapp-link">
                                     <svg viewBox="0 0 24 24" width="24" height="24" fill="#25D366">
                                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                                     </svg>
@@ -1046,7 +1055,94 @@ const WalletCardView = () => {
                         <Video size={18} />
                         <span>فيديو تعليمي</span>
                     </a>
+
+                    <button
+                        onClick={() => setShowTermsModal(true)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            padding: '14px 24px',
+                            fontSize: '15px',
+                            fontWeight: '600',
+                            borderRadius: '12px',
+                            border: '2px solid rgba(255, 255, 255, 0.2)',
+                            background: 'transparent',
+                            color: 'white',
+                            cursor: 'pointer',
+                            backdropFilter: 'blur(10px)',
+                            transition: 'all 0.3s ease',
+                            gridColumn: '1 / -1' // Span full width below the others
+                        }}
+                    >
+                        <FileText size={18} />
+                        <span>سياسة الاستخدام</span>
+                    </button>
                 </div>
+
+                {/* Reusable Terms Modal */}
+                {showTermsModal && (
+                    <div className="wallet-terms-overlay" dir="rtl" style={{ zIndex: 1000 }}>
+                        <div className="wallet-terms-modal" style={{ position: 'relative' }}>
+                            <button
+                                type="button"
+                                onClick={() => setShowTermsModal(false)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '16px',
+                                    left: '16px',
+                                    background: 'rgba(0,0,0,0.1)',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#333',
+                                    fontSize: '18px',
+                                    fontWeight: 'bold',
+                                    zIndex: 10
+                                }}
+                            >
+                                ✕
+                            </button>
+                            <h2>الشروط والأحكام</h2>
+                            <div className="terms-content">
+                                <h3>تعليمات إنشاء حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</h3>
+                                <p>هذا الكارت هو محفظة لتخزين حساب الـ {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</p>
+                                <p>يقوم الزبون بإنشائه بنفسه من جهازه الخاص وبرقم هاتفه، ويتم حفظه هنا.</p>
+                                <p>احفظ رقمك الشخصي ثم ابدأ بإنشاء الحساب على رقم هاتفك.</p>
+
+                                <h3>ملاحظات مهمة:</h3>
+                                <ol>
+                                    <li>يجب استعمال رقم هاتف لم يستعمل سابقا في تفعيل حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}</li>
+                                    <li>يتم حفظ معلومات الحساب في نظامنا 3 سنوات بعدها غير مسؤلين عن فقدان المعلومات بعد 3 سنوات من تفعيل الحساب.</li>
+                                    <li>يمكنك طلب بطاقة خاصه تتضمن معلومات حسابك عند تفعيل حسابك.</li>
+                                </ol>
+
+                                <p>يجب ألا يكون الجهاز قد تم إنشاء حسابات عليه سابقا. في بعض الأحيان تكون هناك هواتف مستعملة تم إنشاء حسابات عليها في وقت سابق، حيث إن شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} تعطي سماحًا بعدد معين من الحسابات لكل جهاز لذلك قد يتم حظر الجهاز من قبل شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} وتظهر رسالة تعذر إنشاء الحساب، حاول في وقت لاحق. هذه المشكلة لا علاقة لها بالبطاقة، ولكنها تعني أن الجهاز نفسه محظور من إنشاء الحسابات في هذه الحالة قم بتفعيل الحساب على جهاز آخر ثم سجل الدخول إلى جهازك. قم بأخذ لقطة شاشة للحساب والاحتفاظ بها لديك بعد تفعيله.</p>
+
+                                <h3>إخلاء مسؤولية:</h3>
+                                <p>الضمان المقدم يقتصر حصريا على ضمان استبدال بطاقة المحفظة فقط، ولا يشمل أي مسؤولية أخرى متعلقة بحساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} أو أي أضرار مباشرة أو غير مباشرة قد تلحق بالجهاز لأي سبب كان. نحن لا نبيع حساب {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، وإنما نبيع بطاقة محفظة مخصصة لتخزين الحساب الذي يقوم الزبون بإنشائه بنفسه وباستخدام جهازه ورقم هاتفه الشخصي. في الوضع الطبيعي إن إنشاء الحساب يدويا وبشكل مباشر وبرقم هاتف الزبون يُعد حسابًا رسميا وأصوليا صالحًا لاستخدامه كحساب iCloud و {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}. ومع ذلك، قد تطرأ في أي وقت أخطاء أو مشكلات داخل أنظمة شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، دون أسباب واضحة، قد تؤدي إلى تعطيل الوصول إلى بعض الخدمات أو التسبب بأضرار، وقد صرحت شركة {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'} بذلك صراحة ضمن شروط استخدام خدماتها. وبمجرد استخدام أي من خدمات أو منتجات {card.wallet_type === 'google' ? 'Google Play' : 'Apple ID'}، فإن المستخدم يقر ويتحمل كامل المسؤولية عن ذلك وحده. وعليه فإن البائع يخلي مسؤوليته بالكامل وينتهي التزامه عند تسليم بطاقة المحفظة للزبون.</p>
+
+                                <p className="terms-final"><strong>يرجى الالتزام بجميع التعليمات، ويُعد استخدامك للمحفظة إقرارًا بموافقتك الكاملة على جميع الشروط والتعليمات المذكورة أعلاه.</strong></p>
+                            </div>
+
+                            <div style={{ padding: '0 16px 20px', display: 'flex', justifyContent: 'center' }}>
+                                <button
+                                    onClick={() => setShowTermsModal(false)}
+                                    className="phone-submit-btn"
+                                    style={{ background: headerColor, marginTop: '10px', width: '100%', border: 'none', padding: '12px', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                                >
+                                    إغلاق
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Print Date */}
                 <div className="wallet-print-date">

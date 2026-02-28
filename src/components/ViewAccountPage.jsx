@@ -20,6 +20,7 @@ const ViewAccountPage = () => {
 
     // Phone collection state
     const [showPhoneModal, setShowPhoneModal] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
     const [phoneNumber, setPhoneNumber] = useState('');
     const [phoneError, setPhoneError] = useState('');
     const [submittingPhone, setSubmittingPhone] = useState(false);
@@ -275,6 +276,88 @@ const ViewAccountPage = () => {
                 </div>
             )}
 
+            {/* Reusable Terms Modal */}
+            {showTermsModal && (
+                <div className="phone-modal-overlay" style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', zIndex: 1000 }}>
+                    <div className="phone-modal" dir="rtl" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+                        <button
+                            type="button"
+                            onClick={() => setShowTermsModal(false)}
+                            style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                background: 'rgba(0,0,0,0.1)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: '#333',
+                                fontSize: '18px',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            ✕
+                        </button>
+                        <div style={{ textAlign: 'center', marginTop: '20px', marginBottom: '10px' }}>
+                            <h2 style={{ color: themeColor }}>سياسة الاستخدام</h2>
+                        </div>
+
+                        <div style={{
+                            background: 'rgba(0,0,0,0.05)',
+                            borderRadius: '12px',
+                            padding: '20px',
+                            margin: '16px',
+                            fontSize: '14px',
+                            lineHeight: '1.8',
+                            textAlign: 'right',
+                            color: '#333'
+                        }}>
+                            <div style={{ fontWeight: 'bold', marginBottom: '16px', color: themeColor, fontSize: '16px' }}>
+                                ⚠️ الشروط والأحكام
+                            </div>
+                            <p style={{ marginBottom: '12px' }}>
+                                الكارت ينشأ يدوياً من هاتفك وليس حساب جاهز.
+                            </p>
+                            <p style={{ marginBottom: '12px' }}>
+                                يعمل الحساب على <strong style={{ color: themeColor }}>{isApple ? 'Apple Store' : 'Google Play'}</strong> و {isApple ? 'iCloud' : 'Google Services'} ويدعم الشراء من داخل التطبيق.
+                            </p>
+                            <p style={{ marginBottom: '12px' }}>
+                                سجل الحساب يدوياً في حال لم يعمل الباركود بعد مرور 3 أشهر.
+                            </p>
+                            <div style={{
+                                background: 'rgba(255,0,0,0.08)',
+                                border: '1px solid rgba(255,0,0,0.2)',
+                                borderRadius: '8px',
+                                padding: '16px',
+                                marginTop: '16px'
+                            }}>
+                                <div style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '8px', fontSize: '15px' }}>
+                                    ⚖️ تنويه قانوني:
+                                </div>
+                                <p style={{ margin: 0, color: '#7f1d1d', fontSize: '13px', lineHeight: '1.6' }}>
+                                    يلتزم المستخدم بإيقاف ميزة العثور على الهاتف وفي حال عدم الالتزام تخلي الشركة والوكيل كامل المسؤولية القانونية والضمانية عن أي أضرار قد تحدث للهاتف.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '0 16px 20px' }}>
+                            <button
+                                onClick={() => setShowTermsModal(false)}
+                                className="phone-submit-btn"
+                                style={{ background: themeColor, marginTop: '10px' }}
+                            >
+                                إغلاق
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="view-account-container">
                 {/* Success message after phone submission */}
                 {phoneSubmitted && (
@@ -328,12 +411,14 @@ const ViewAccountPage = () => {
                     <div className="view-account-section">
                         <div className="view-account-field">
                             <label>الاسم الأول</label>
-                            <div className="view-account-value">{accountData.firstName || accountData.name?.split(' ')[0] || 'غير متوفر'}</div>
+                            <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.firstName)}>{accountData.firstName || accountData.name?.split(' ')[0] || 'غير متوفر'} <span className="copy-hint">اضغط للنسخ</span></div>
+
                         </div>
 
                         <div className="view-account-field">
                             <label>اسم العائلة</label>
-                            <div className="view-account-value">{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'غير متوفر'}</div>
+                            <div className="view-account-value copyable" onClick={() => navigator.clipboard.writeText(accountData.lastName)}>{accountData.lastName || accountData.name?.split(' ').slice(1).join(' ') || 'غير متوفر'} <span className="copy-hint">اضغط للنسخ</span></div>
+
                         </div>
 
                         {accountData.phoneNumber && (
@@ -370,18 +455,18 @@ const ViewAccountPage = () => {
                     <div className="view-account-section">
                         <div className="view-account-field">
                             <label>تاريخ الميلاد</label>
-                            <div className="view-account-value">{accountData.dob}</div>
+                            <div className="view-account-value">{new Date(accountData.dob).toLocaleDateString('en-CA')}</div>
                         </div>
 
                         <div className="view-account-field">
                             <label>الرقم التسلسلي</label>
-                            <div className="view-account-value mono" style={{ direction: 'rtl', textAlign: 'right' }}>{accountData.sn}</div>
+                            <div className="view-account-value mono copyable" style={{ direction: 'rtl', textAlign: 'right' }} onClick={() => navigator.clipboard.writeText(accountData.sn)}>{accountData.sn} <span className="copy-hint">اضغط للنسخ</span></div>
                         </div>
 
                         {accountData.id && (
                             <div className="view-account-field">
                                 <label>معرف الحساب</label>
-                                <div className="view-account-value mono small" style={{ direction: 'rtl', textAlign: 'right' }}>{accountData.id}</div>
+                                <div className="view-account-value mono small copyable" style={{ direction: 'rtl', textAlign: 'right' }} onClick={() => navigator.clipboard.writeText(accountData.id)}>{accountData.id} <span className="copy-hint">اضغط للنسخ</span></div>
                             </div>
                         )}
                     </div>
@@ -391,6 +476,23 @@ const ViewAccountPage = () => {
                 <div className="view-account-footer">
                     <p>🔒 هذه البيانات مشفرة ومحمية من التلاعب.</p>
                     <p>حافظ على سرية هذه المعلومات ولا تشاركها مع الآخرين.</p>
+                    <button
+                        onClick={() => setShowTermsModal(true)}
+                        style={{
+                            marginTop: '15px',
+                            background: 'transparent',
+                            border: `1px solid ${themeColor}`,
+                            color: themeColor,
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        📄 سياسة الاستخدام
+                    </button>
                 </div>
             </div>
         </div>
