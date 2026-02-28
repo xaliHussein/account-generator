@@ -671,10 +671,10 @@ const WalletStoreManagement = () => {
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
                 const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
-                    cardsToExport = response.cards;
+                    cardsToExport = response.cards.data || response.cards;
                     setCardsByBatch(prev => ({
                         ...prev,
-                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                        [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
                     }));
                 }
             }
@@ -709,11 +709,11 @@ const WalletStoreManagement = () => {
                 // Fetch full batch
                 const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
-                    cardsToExport = response.cards;
-                    // Update local state to cache it? Optional, but good for UX
+                    cardsToExport = response.cards.data || response.cards;
+                    // Update local state to cache it
                     setCardsByBatch(prev => ({
                         ...prev,
-                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                        [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
                     }));
                 }
             }
@@ -748,11 +748,11 @@ const WalletStoreManagement = () => {
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
                 const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
                 if (response.cards) {
-                    cardsToExport = response.cards;
+                    cardsToExport = response.cards.data || response.cards;
                     // Update local state
                     setCardsByBatch(prev => ({
                         ...prev,
-                        [batchId]: { ...prev[batchId], cards: response.cards, isPartial: false }
+                        [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
                     }));
                 }
             }
@@ -860,7 +860,7 @@ const WalletStoreManagement = () => {
                     total: data.cards.total,
                     currentPage: data.cards.current_page,
                     lastPage: data.cards.last_page,
-                    isPartial: false
+                    isPartial: data.cards.total > data.cards.data.length
                 }
             }));
 
