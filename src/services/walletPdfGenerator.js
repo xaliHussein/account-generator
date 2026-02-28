@@ -374,11 +374,125 @@ export const downloadWalletCardBackPrintSheetPDF = async (cards, onProgress, boa
     URL.revokeObjectURL(url);
 };
 
+/**
+ * Download wallet card print sheet as a high-resolution PNG image
+ * Reuses renderCardBatchToImages to render individual card canvases, then composites them onto a large canvas
+ */
+export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const WalletCardComponent = await getWalletCardComponent(cardDesign);
+
+    // Calculate layout (same as PDF)
+    const cardsPerRow = Math.floor(boardWidth / (cardWidth + margin));
+    const cardsPerCol = Math.floor(boardHeight / (cardHeight + margin));
+    const cardsPerPage = cardsPerRow * cardsPerCol;
+
+    const gridWidthMM = cardsPerRow * cardWidth + (cardsPerRow - 1) * margin;
+    const gridHeightMM = cardsPerCol * cardHeight + (cardsPerCol - 1) * margin;
+    const startXMM = (boardWidth - gridWidthMM) / 2;
+    const startYMM = (boardHeight - gridHeightMM) / 2;
+
+    const totalPages = Math.ceil(cards.length / cardsPerPage);
+
+    // Render ALL card images first (using existing batch renderer)
+    const allCardImages = [];
+    let processedCount = 0;
+
+    for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
+        const batchCards = cards.slice(batchStart, batchEnd);
+
+        const batchProps = batchCards.map(card => ({
+            card,
+            showQR: true,
+            printDate,
+            walletType,
+            qrLogo
+        }));
+
+        const batchCanvases = await renderCardBatchToImages(WalletCardComponent, batchProps, (itemIndex) => {
+            processedCount = batchStart + itemIndex;
+            if (onProgress) {
+                onProgress({
+                    current: processedCount,
+                    total: cards.length,
+                    percentage: Math.round((processedCount / cards.length) * 80),
+                    status: 'creating-image'
+                });
+            }
+        });
+
+        allCardImages.push(...batchCanvases);
+        await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Now composite cards onto large canvases (one per page) and download
+    // MM to PX: each card canvas is CARD_WIDTH_PX * RENDER_SCALE wide
+    // We need to scale the board proportionally
+    const cardCanvasWidth = CARD_WIDTH_PX * RENDER_SCALE;
+    const cardCanvasHeight = CARD_HEIGHT_PX * RENDER_SCALE;
+
+    // Calculate board canvas size based on card canvas size and layout ratios
+    const pxPerMM = cardCanvasWidth / cardWidth; // px per mm based on rendered card size
+    const boardCanvasWidth = Math.round(boardWidth * pxPerMM);
+    const boardCanvasHeight = Math.round(boardHeight * pxPerMM);
+    const marginPx = Math.round(margin * pxPerMM);
+    const startXPx = Math.round(startXMM * pxPerMM);
+    const startYPx = Math.round(startYMM * pxPerMM);
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cards.length);
+
+        // Create large canvas for the page
+        const canvas = document.createElement('canvas');
+        canvas.width = boardCanvasWidth;
+        canvas.height = boardCanvasHeight;
+        const ctx = canvas.getContext('2d');
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, boardCanvasWidth, boardCanvasHeight);
+
+        // Draw each card at calculated position
+        for (let i = pageStartIndex; i < pageEndIndex; i++) {
+            const localIndex = i - pageStartIndex;
+            const col = localIndex % cardsPerRow;
+            const row = Math.floor(localIndex / cardsPerRow);
+            const x = startXPx + col * (cardCanvasWidth + marginPx);
+            const y = startYPx + row * (cardCanvasHeight + marginPx);
+
+            ctx.drawImage(allCardImages[i], x, y, cardCanvasWidth, cardCanvasHeight);
+        }
+
+        if (onProgress) {
+            onProgress({
+                current: cards.length,
+                total: cards.length,
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
+                status: 'creating-image'
+            });
+        }
+
+        // Download as PNG
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
+        link.download = `wallet-print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
+
 export default {
     generateWalletCardPDF,
     downloadWalletCardPDF,
     generateWalletPrintSheetPDF,
     downloadWalletPrintSheetPDF,
+    downloadWalletPrintSheetImage,
     generateWalletCardBackPrintSheetPDF,
     downloadWalletCardBackPrintSheetPDF,
 };

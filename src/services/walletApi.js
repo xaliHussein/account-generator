@@ -209,6 +209,30 @@ export const deactivateWalletCard = async (cardId) => {
     return response.data;
 };
 
+/**
+ * Lock all cards for a wallet store
+ */
+export const lockWalletStoreCards = async (storeId) => {
+    const response = await api.post(`/api/wallet-stores/${storeId}/lock-cards`);
+    return response.data;
+};
+
+/**
+ * Unlock all cards for a wallet store
+ */
+export const unlockWalletStoreCards = async (storeId) => {
+    const response = await api.post(`/api/wallet-stores/${storeId}/unlock-cards`);
+    return response.data;
+};
+
+/**
+ * Toggle lock status of a wallet card
+ */
+export const toggleWalletCardLock = async (cardId) => {
+    const response = await api.post(`/api/activated-wallet-cards/${cardId}/toggle-lock`);
+    return response.data;
+};
+
 // ============================
 // CARD REQUESTS API
 // ============================

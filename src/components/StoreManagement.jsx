@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, getStoreBatchCards, deleteBatch, getActivatedCards, deactivateCard } from '../services/api';
+import { getStores, createStore, updateStore, deleteStore, generateCards, getStoreCardsForExport, getStoreBatchCards, deleteBatch, getActivatedCards, deactivateCard, lockStoreCards, unlockStoreCards } from '../services/api';
 import { downloadAccountsZip } from '../services/zipExporter';
 import { downloadPrintSheetPDF, downloadAccountPDF, downloadCardBackPrintSheetPDF } from '../services/pdfGenerator';
 import { downloadAccountCardsImagesZip, downloadCardBacksImagesZip } from '../services/storeImageExporter';
@@ -10,7 +10,7 @@ import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
     Download, FileArchive, Printer, Upload, Eye, Settings, Check, List,
-    ArrowUpDown, ArrowUp, ArrowDown, Search, Phone, XCircle, Copy, CheckCircle
+    ArrowUpDown, ArrowUp, ArrowDown, Search, Phone, XCircle, Copy, CheckCircle, Lock, Unlock
 } from 'lucide-react';
 
 /**
@@ -2074,14 +2074,54 @@ const StoreManagement = () => {
                                     <span className="stat-value inactive">{formatNumber(store.inactive_cards_count)}</span>
                                     <span className="stat-label">Inactive</span>
                                 </div>
+                                {(store.locked_cards_count > 0) && (
+                                    <div className="stat">
+                                        <span className="stat-value" style={{ color: 'var(--color-accent-red)' }}>{formatNumber(store.locked_cards_count)}</span>
+                                        <span className="stat-label">Locked</span>
+                                    </div>
+                                )}
                             </div>
-                            <div className="store-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                            <div className="store-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
                                 <button onClick={() => handleViewCards(store)} className="btn btn-secondary-enhanced" style={{ flex: 1 }} disabled={actionLoading || (store.cards_count || 0) === 0}>
                                     <List size={16} /> View Cards
                                 </button>
                                 <button onClick={() => openGenerateForm(store)} className="btn btn-primary-enhanced" style={{ flex: 1 }}>
                                     <CreditCard size={16} /> Generate
                                 </button>
+                                {(store.cards_count || 0) > 0 && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm(store.locked_cards_count > 0
+                                                ? `Unlock all ${store.cards_count} cards for "${store.name}"?`
+                                                : `Lock all ${store.cards_count} cards for "${store.name}"? Users scanning locked cards will see a blocked message.`
+                                            )) return;
+                                            setActionLoading(true);
+                                            try {
+                                                if (store.locked_cards_count > 0) {
+                                                    await unlockStoreCards(store.id);
+                                                } else {
+                                                    await lockStoreCards(store.id);
+                                                }
+                                                loadStores(currentPage);
+                                            } catch (err) {
+                                                setError(err.response?.data?.message || 'Failed to update lock status');
+                                            } finally {
+                                                setActionLoading(false);
+                                            }
+                                        }}
+                                        className={`btn ${store.locked_cards_count > 0 ? 'btn-secondary-enhanced' : 'btn-ghost'}`}
+                                        style={{
+                                            flex: 1,
+                                            color: store.locked_cards_count > 0 ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                                            borderColor: store.locked_cards_count > 0 ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                                        }}
+                                        disabled={actionLoading}
+                                        title={store.locked_cards_count > 0 ? 'Unlock all cards' : 'Lock all cards'}
+                                    >
+                                        {store.locked_cards_count > 0 ? <Unlock size={16} /> : <Lock size={16} />}
+                                        {store.locked_cards_count > 0 ? 'Unlock' : 'Lock'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}

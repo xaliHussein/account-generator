@@ -200,6 +200,22 @@ export const getStoreBatchCards = async (storeId, batchId, page = 1, perPage = 2
 };
 
 /**
+ * Lock all cards for a store
+ */
+export const lockStoreCards = async (storeId) => {
+    const response = await api.post(`/api/stores/${storeId}/lock-cards`);
+    return response.data;
+};
+
+/**
+ * Unlock all cards for a store
+ */
+export const unlockStoreCards = async (storeId) => {
+    const response = await api.post(`/api/stores/${storeId}/unlock-cards`);
+    return response.data;
+};
+
+/**
  * Generate cards for a store
  */
 export const generateCards = async (storeId, count, emailType = 'icloud', color = 'blue', emailPrefix = null, passwordPrefix = null) => {

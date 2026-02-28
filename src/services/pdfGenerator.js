@@ -871,6 +871,139 @@ export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
     URL.revokeObjectURL(url);
 };
 
+/**
+ * Download print sheet as a high-resolution PNG image
+ * Renders AccountCard components in a grid layout matching the PDF print sheet
+ * 
+ * @param {Array} accounts - Array of account objects
+ * @param {Function} onProgress - Progress callback
+ * @param {number} batchNumber - Batch number for VIP badge
+ * @param {string} customLogo - Custom logo data URL
+ * @param {string} cardColor - Card color theme
+ * @param {number} boardWidth - Custom board width in mm (default: 900mm = 90cm)
+ * @param {number} boardHeight - Custom board height in mm (default: 600mm = 60cm)
+ * @param {string} qrLogo - QR code logo data URL
+ */
+export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null) => {
+    const html2canvas = (await import('html2canvas')).default;
+    const ReactDOM = (await import('react-dom/client')).default;
+    const React = (await import('react')).default;
+    const AccountCard = (await import('../components/AccountCard')).default;
+
+    const { cardWidth, cardHeight, margin } = CARD_DIMENSIONS;
+    const { cardsPerRow, cardsPerCol, cardsPerPage } = calculatePrintLayout(boardWidth, boardHeight);
+
+    // MM to PX conversion: 1mm ≈ 3.78px at 96 DPI, we use a scale factor for high-res
+    const MM_TO_PX = 3.78;
+    const SCALE = 2; // 2x for high-res output
+
+    const containerWidthPx = boardWidth * MM_TO_PX;
+    const containerHeightPx = boardHeight * MM_TO_PX;
+    const cardWidthPx = cardWidth * MM_TO_PX;
+    const cardHeightPx = cardHeight * MM_TO_PX;
+    const marginPx = margin * MM_TO_PX;
+
+    const gridWidth = cardsPerRow * cardWidthPx + (cardsPerRow - 1) * marginPx;
+    const gridHeight = cardsPerCol * cardHeightPx + (cardsPerCol - 1) * marginPx;
+    const startX = (containerWidthPx - gridWidth) / 2;
+    const startY = (containerHeightPx - gridHeight) / 2;
+
+    const totalPages = Math.ceil(accounts.length / cardsPerPage);
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+        const pageStartIndex = pageIndex * cardsPerPage;
+        const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, accounts.length);
+        const accountsOnPage = accounts.slice(pageStartIndex, pageEndIndex);
+
+        // Create container
+        const container = document.createElement('div');
+        container.style.cssText = `
+            position: fixed; left: -99999px; top: 0;
+            width: ${containerWidthPx}px; height: ${containerHeightPx}px;
+            background: white; overflow: hidden;
+        `;
+
+        // Add CSS overrides
+        const style = document.createElement('style');
+        style.textContent = `
+            .print-sheet-card .account-card-preview.apple-style {
+                max-width: none !important;
+                width: 100% !important;
+                height: 100% !important;
+                box-shadow: none !important;
+                border-radius: 8px !important;
+                overflow: hidden !important;
+            }
+        `;
+        container.appendChild(style);
+
+        // Render each card at calculated position
+        for (let i = 0; i < accountsOnPage.length; i++) {
+            const account = accountsOnPage[i];
+            const col = i % cardsPerRow;
+            const row = Math.floor(i / cardsPerRow);
+            const x = startX + col * (cardWidthPx + marginPx);
+            const y = startY + row * (cardHeightPx + marginPx);
+
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'print-sheet-card';
+            cardDiv.style.cssText = `
+                position: absolute;
+                left: ${x}px; top: ${y}px;
+                width: ${cardWidthPx}px; height: ${cardHeightPx}px;
+            `;
+            container.appendChild(cardDiv);
+
+            const root = ReactDOM.createRoot(cardDiv);
+            root.render(React.createElement(AccountCard, {
+                account,
+                showQR: true,
+                batchNumber,
+                customLogo,
+                cardColor,
+                qrLogo,
+            }));
+        }
+
+        document.body.appendChild(container);
+
+        // Wait for rendering
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        if (onProgress) {
+            onProgress({
+                current: pageEndIndex,
+                total: accounts.length,
+                percentage: Math.round((pageEndIndex / accounts.length) * 100),
+                status: 'creating-image'
+            });
+        }
+
+        // Capture canvas
+        const canvas = await html2canvas(container, {
+            scale: SCALE,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: containerWidthPx,
+            height: containerHeightPx,
+        });
+
+        document.body.removeChild(container);
+
+        // Download as PNG
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
+        link.download = `print-sheet-${accountsOnPage.length}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
+
 export default {
     generateAccountPDF,
     generateMultipleAccountsPDF,
@@ -878,6 +1011,7 @@ export default {
     downloadCardBackPDF,
     generatePrintSheetPDF,
     downloadPrintSheetPDF,
+    downloadPrintSheetImage,
     generateCardBackPrintSheetPDF,
     downloadCardBackPrintSheetPDF,
 };

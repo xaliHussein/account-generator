@@ -3,7 +3,8 @@ import {
     getWalletStores, createWalletStore, updateWalletStore, deleteWalletStore,
     generateWalletCards, getWalletStoreCards, getWalletBatchCards,
     getActivatedWalletCards, deactivateWalletCard,
-    getCardRequests, updateCardRequestStatus, deleteCardRequest
+    getCardRequests, updateCardRequestStatus, deleteCardRequest,
+    lockWalletStoreCards, unlockWalletStoreCards, toggleWalletCardLock
 } from '../services/walletApi';
 import {
     downloadWalletPrintSheetPDF,
@@ -25,7 +26,7 @@ import Card from './ui/Card';
 import Pagination from './ui/Pagination';
 import {
     Store, Plus, Edit2, Trash2, CreditCard, X, AlertCircle,
-    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search, Phone, XCircle, Copy, CheckCircle, FileText
+    Download, Printer, Eye, List, ArrowUp, ArrowDown, FileArchive, Upload, Settings, Check, Search, Phone, XCircle, Copy, CheckCircle, FileText, Lock, Unlock
 } from 'lucide-react';
 
 /**
@@ -1230,6 +1231,25 @@ const WalletStoreManagement = () => {
                                                 </td>
                                                 <td style={{ padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={async () => {
+                                                                setActionLoading(true);
+                                                                try {
+                                                                    await toggleWalletCardLock(card.id);
+                                                                    loadActivatedCards(activatedPage);
+                                                                } catch (err) {
+                                                                    setError(err.response?.data?.message || 'Failed to toggle lock');
+                                                                } finally {
+                                                                    setActionLoading(false);
+                                                                }
+                                                            }}
+                                                            className="btn btn-ghost"
+                                                            title={card.isLocked ? 'Unlock Card' : 'Lock Card'}
+                                                            style={{ color: card.isLocked ? 'var(--color-accent-green)' : 'var(--color-accent-orange, #f59e0b)', padding: '4px' }}
+                                                            disabled={actionLoading}
+                                                        >
+                                                            {card.isLocked ? <Unlock size={16} /> : <Lock size={16} />}
+                                                        </button>
                                                         <button
                                                             onClick={() => setActionNotificationModal({ show: true, card, action: 'deactivate' })}
                                                             className="btn btn-ghost"
@@ -2468,13 +2488,47 @@ const WalletStoreManagement = () => {
                                         <span className="stat-label">Locked</span>
                                     </div>
                                 </div>
-                                <div className="store-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                                <div className="store-card-footer" style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
                                     <button onClick={() => handleViewCards(store)} className="btn btn-secondary-enhanced" style={{ flex: 1 }} disabled={actionLoading || (store.cards_count || 0) === 0}>
                                         <List size={16} /> View Cards
                                     </button>
                                     <button onClick={() => openGenerateForm(store)} className="btn btn-primary-enhanced" style={{ flex: 1 }}>
                                         <CreditCard size={16} /> Generate
                                     </button>
+                                    {(store.cards_count || 0) > 0 && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm(store.locked_cards_count > 0
+                                                    ? `Unlock all ${store.cards_count} cards for "${store.name}"?`
+                                                    : `Lock all ${store.cards_count} cards for "${store.name}"? Users scanning locked cards will see a blocked message.`
+                                                )) return;
+                                                setActionLoading(true);
+                                                try {
+                                                    if (store.locked_cards_count > 0) {
+                                                        await unlockWalletStoreCards(store.id);
+                                                    } else {
+                                                        await lockWalletStoreCards(store.id);
+                                                    }
+                                                    loadStores(storePage);
+                                                } catch (err) {
+                                                    setError(err.response?.data?.message || 'Failed to update lock status');
+                                                } finally {
+                                                    setActionLoading(false);
+                                                }
+                                            }}
+                                            className={`btn ${store.locked_cards_count > 0 ? 'btn-secondary-enhanced' : 'btn-ghost'}`}
+                                            style={{
+                                                flex: 1,
+                                                color: store.locked_cards_count > 0 ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                                                borderColor: store.locked_cards_count > 0 ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                                            }}
+                                            disabled={actionLoading}
+                                            title={store.locked_cards_count > 0 ? 'Unlock all cards' : 'Lock all cards'}
+                                        >
+                                            {store.locked_cards_count > 0 ? <Unlock size={16} /> : <Lock size={16} />}
+                                            {store.locked_cards_count > 0 ? 'Unlock' : 'Lock'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}
