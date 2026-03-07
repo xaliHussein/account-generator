@@ -119,6 +119,9 @@ const WalletStoreManagement = () => {
         password_prefix: '',
     });
 
+    // Multiple email prefixes state
+    const [emailPrefixes, setEmailPrefixes] = useState([]);
+
     // Print sheet settings
     const [boardWidth, setBoardWidth] = useState('');
     const [boardHeight, setBoardHeight] = useState('');
@@ -422,38 +425,70 @@ const WalletStoreManagement = () => {
         e.preventDefault();
         if (!selectedStore) return;
 
+        // Filter out empty prefixes
+        const activePrefixes = emailPrefixes.filter(p => p.trim().length > 0);
+
         setActionLoading(true);
         try {
-            const response = await generateWalletCards(
-                selectedStore.id,
-                generateData.count,
-                generateData.email_type,
-                generateData.email_prefix || null,
-                accountIdType,
-                generateData.password_prefix || null
-            );
+            let allCards = [];
+            let lastResponse = null;
 
-            // Transform cards for display and export
-            const cards = (response.cards || []).map(card => ({
-                ...card,
-                batchId: response.batch_id,
-                createdAt: new Date().toISOString(),
-            }));
+            if (activePrefixes.length > 0) {
+                // Multiple prefixes: make one API call per prefix
+                for (const prefix of activePrefixes) {
+                    const response = await generateWalletCards(
+                        selectedStore.id,
+                        generateData.count,
+                        generateData.email_type,
+                        prefix,
+                        accountIdType,
+                        generateData.password_prefix || null
+                    );
+                    lastResponse = response; // keep last response for batchId
+                    const cards = (response.cards || []).map(card => ({
+                        ...card,
+                        batchId: response.batch_id,
+                        createdAt: new Date().toISOString(),
+                    }));
+                    allCards = [...allCards, ...cards];
+                }
+            } else {
+                // No prefixes: single call with optional single prefix
+                const response = await generateWalletCards(
+                    selectedStore.id,
+                    generateData.count,
+                    generateData.email_type,
+                    generateData.email_prefix || null,
+                    accountIdType,
+                    generateData.password_prefix || null
+                );
+                lastResponse = response;
+                allCards = (response.cards || []).map(card => ({
+                    ...card,
+                    batchId: response.batch_id,
+                    createdAt: new Date().toISOString(),
+                }));
+            }
 
-            setGeneratedCards(cards);
+            setGeneratedCards(allCards);
 
-            if (cards.length > 0) {
-                setSelectedPreviewCard(cards[0]);
+            if (allCards.length > 0) {
+                setSelectedPreviewCard(allCards[0]);
             }
 
             // Group by batch
-            const grouped = {
-                [response.batch_id]: {
-                    cards: cards,
-                    createdAt: new Date().toISOString(),
-                }
-            };
-            setCardsByBatch(grouped);
+            if (lastResponse && allCards.length > 0) {
+                // To keep it simple, we group all generated cards under the last batch ID if multiple were created,
+                // or group appropriately
+                const batchId = lastResponse.batch_id;
+                const grouped = {
+                    [batchId]: {
+                        cards: allCards,
+                        createdAt: new Date().toISOString(),
+                    }
+                };
+                setCardsByBatch(grouped);
+            }
 
             setShowGenerateForm(false);
             setShowExportModal(true);
@@ -1897,25 +1932,100 @@ const WalletStoreManagement = () => {
                                             </select>
                                         </div>
                                         <div className="form-group">
-                                            <label>Email Prefix (up to 8 characters)</label>
-                                            <input
-                                                type="text"
-                                                maxLength={8}
-                                                placeholder="e.g., wallet01"
-                                                value={generateData.email_prefix}
-                                                onChange={(e) => {
-                                                    const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                                                    setGenerateData({ ...generateData, email_prefix: value });
-                                                }}
-                                                style={{ fontFamily: 'monospace' }}
-                                            />
-                                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
-                                                {generateData.email_prefix ? (
-                                                    <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
-                                                ) : (
-                                                    'Optional: Enter up to 8 alphanumeric characters'
-                                                )}
-                                            </span>
+                                            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span>Email Prefixes (up to 8 characters each)</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (emailPrefixes.length < 10) {
+                                                            setEmailPrefixes([...emailPrefixes, '']);
+                                                        }
+                                                    }}
+                                                    disabled={emailPrefixes.length >= 10}
+                                                    className="btn btn-sm btn-secondary"
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        fontSize: 'var(--font-size-xs)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                >
+                                                    <Plus size={14} /> Add Prefix
+                                                </button>
+                                            </label>
+
+                                            {emailPrefixes.length === 0 ? (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        maxLength={8}
+                                                        placeholder="e.g., wallet01"
+                                                        value={generateData.email_prefix}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                                                            setGenerateData({ ...generateData, email_prefix: value });
+                                                        }}
+                                                        style={{ fontFamily: 'monospace' }}
+                                                    />
+                                                    <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '4px', display: 'block' }}>
+                                                        {generateData.email_prefix ? (
+                                                            <>Preview: <code style={{ background: 'var(--color-bg-tertiary)', padding: '2px 6px', borderRadius: '4px' }}>{generateData.email_prefix.padEnd(8, '•')}{'########'}@{generateData.email_type === 'gmail' ? 'gmail.com' : 'icloud.com'}</code></>
+                                                        ) : (
+                                                            'Optional: single prefix or click "Add Prefix" for multiple'
+                                                        )}
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                        {emailPrefixes.map((prefix, index) => (
+                                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <span style={{
+                                                                    fontSize: 'var(--font-size-xs)',
+                                                                    color: 'var(--color-text-tertiary)',
+                                                                    minWidth: '20px',
+                                                                    textAlign: 'center',
+                                                                    fontWeight: 600
+                                                                }}>{index + 1}</span>
+                                                                <input
+                                                                    type="text"
+                                                                    maxLength={8}
+                                                                    placeholder={`Prefix ${index + 1}`}
+                                                                    value={prefix}
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                                                                        const updated = [...emailPrefixes];
+                                                                        updated[index] = value;
+                                                                        setEmailPrefixes(updated);
+                                                                    }}
+                                                                    style={{
+                                                                        flex: 1,
+                                                                        fontFamily: 'monospace'
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setEmailPrefixes(emailPrefixes.filter((_, i) => i !== index));
+                                                                    }}
+                                                                    className="btn btn-ghost"
+                                                                    style={{ padding: '4px', color: 'var(--color-accent-red)' }}
+                                                                >
+                                                                    <X size={16} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: '8px', display: 'block' }}>
+                                                        {emailPrefixes.filter(p => p.trim()).length > 0 ? (
+                                                            <>Total: <strong>{emailPrefixes.filter(p => p.trim()).length} prefix(es)</strong> × {generateData.count} cards = <strong>{emailPrefixes.filter(p => p.trim()).length * generateData.count} cards</strong></>
+                                                        ) : (
+                                                            'Enter prefixes in the fields above. Each prefix generates its own batch of cards.'
+                                                        )}
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
                                         <div className="form-group">
                                             <label>Password Prefix (exactly 6 characters)</label>

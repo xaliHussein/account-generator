@@ -337,6 +337,33 @@ export const deactivateCard = async (cardId) => {
     return response.data;
 };
 
+// ==================== Database Backup ====================
+
+/**
+ * Download a database backup (.sql file)
+ */
+export const downloadBackup = async () => {
+    const response = await api.get('/api/backup/download', {
+        responseType: 'blob',
+    });
+    // Extract filename from Content-Disposition header or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `backup_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.sql`;
+    if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+    }
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+};
+
 // ==================== Settings ====================
 
 /**

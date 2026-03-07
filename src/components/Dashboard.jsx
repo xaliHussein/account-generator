@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores, getSettings, updateSettings } from '../services/api';
+import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores, getSettings, updateSettings, downloadBackup } from '../services/api';
 import { searchWalletPhone, getWalletRecentScans } from '../services/walletApi';
-import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown, MessageCircle } from 'lucide-react';
+import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown, MessageCircle, Download, Loader2 } from 'lucide-react';
 
 /**
  * Dashboard Component
@@ -45,6 +45,7 @@ const Dashboard = () => {
     // WhatsApp toggle state
     const [showWhatsApp, setShowWhatsApp] = useState(true);
     const [settingsLoading, setSettingsLoading] = useState(false);
+    const [backupLoading, setBackupLoading] = useState(false);
 
     // Navigation handler based on card type
     const handleNavigateToStores = () => {
@@ -286,7 +287,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Global Settings Toggle */}
+            {/* Global Settings & Backup */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -295,40 +296,71 @@ const Dashboard = () => {
                 background: 'var(--color-bg-secondary)',
                 borderRadius: 'var(--border-radius-lg)',
                 border: '1px solid var(--border-color)',
-                marginBottom: 'var(--spacing-lg)'
+                marginBottom: 'var(--spacing-lg)',
+                flexWrap: 'wrap',
+                gap: 'var(--spacing-md)'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
                     <MessageCircle size={18} style={{ color: '#25D366' }} />
                     <span style={{ fontWeight: 'var(--font-weight-medium)', fontSize: 'var(--font-size-sm)' }}>Show WhatsApp Button</span>
                     <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>(Visible on card view pages)</span>
                 </div>
-                <button
-                    onClick={handleToggleWhatsApp}
-                    disabled={settingsLoading}
-                    style={{
-                        position: 'relative',
-                        width: '48px',
-                        height: '26px',
-                        borderRadius: '13px',
-                        border: 'none',
-                        cursor: settingsLoading ? 'wait' : 'pointer',
-                        background: showWhatsApp ? '#25D366' : 'var(--color-bg-tertiary)',
-                        transition: 'background 0.3s ease',
-                        padding: 0
-                    }}
-                >
-                    <div style={{
-                        position: 'absolute',
-                        top: '3px',
-                        left: showWhatsApp ? '25px' : '3px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                        transition: 'left 0.3s ease'
-                    }} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                    <button
+                        onClick={async () => {
+                            setBackupLoading(true);
+                            try {
+                                await downloadBackup();
+                            } catch (err) {
+                                console.error('Backup failed:', err);
+                                setError('Failed to download backup');
+                            } finally {
+                                setBackupLoading(false);
+                            }
+                        }}
+                        disabled={backupLoading}
+                        className="btn btn-secondary-enhanced"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 14px',
+                            fontSize: 'var(--font-size-sm)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            whiteSpace: 'nowrap'
+                        }}
+                    >
+                        {backupLoading ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                        {backupLoading ? 'Downloading...' : 'Database Backup'}
+                    </button>
+                    <button
+                        onClick={handleToggleWhatsApp}
+                        disabled={settingsLoading}
+                        style={{
+                            position: 'relative',
+                            width: '48px',
+                            height: '26px',
+                            borderRadius: '13px',
+                            border: 'none',
+                            cursor: settingsLoading ? 'wait' : 'pointer',
+                            background: showWhatsApp ? '#25D366' : 'var(--color-bg-tertiary)',
+                            transition: 'background 0.3s ease',
+                            padding: 0
+                        }}
+                    >
+                        <div style={{
+                            position: 'absolute',
+                            top: '3px',
+                            left: showWhatsApp ? '25px' : '3px',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: 'white',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            transition: 'left 0.3s ease'
+                        }} />
+                    </button>
+                </div>
             </div>
 
             {/* Stats Cards - Different for regular vs wallet */}
