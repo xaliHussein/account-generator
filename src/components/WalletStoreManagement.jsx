@@ -445,7 +445,27 @@ const WalletStoreManagement = () => {
                         generateData.password_prefix || null
                     );
                     lastResponse = response; // keep last response for batchId
-                    const cards = (response.cards || []).map(card => ({
+                    
+                    let newCards = response.cards || [];
+                    if (response.batch_id) {
+                        try {
+                            let allBatchCards = [];
+                            let currentPage = 1;
+                            let lastPage = 1;
+                            do {
+                                const batchRes = await getWalletBatchCards(selectedStore.id, response.batch_id, currentPage, 100);
+                                const pageCards = batchRes.cards?.data || batchRes.cards || [];
+                                allBatchCards = [...allBatchCards, ...pageCards];
+                                lastPage = batchRes.cards?.last_page || 1;
+                                currentPage++;
+                            } while (currentPage <= lastPage);
+                            newCards = allBatchCards.length > 0 ? allBatchCards : newCards;
+                        } catch (e) {
+                            console.error('Failed to fetch full batch', e);
+                        }
+                    }
+                    
+                    const cards = newCards.map(card => ({
                         ...card,
                         batchId: response.batch_id,
                         createdAt: new Date().toISOString(),
@@ -463,7 +483,27 @@ const WalletStoreManagement = () => {
                     generateData.password_prefix || null
                 );
                 lastResponse = response;
-                allCards = (response.cards || []).map(card => ({
+                
+                let newCards = response.cards || [];
+                if (response.batch_id) {
+                    try {
+                        let allBatchCards = [];
+                        let currentPage = 1;
+                        let lastPage = 1;
+                        do {
+                            const batchRes = await getWalletBatchCards(selectedStore.id, response.batch_id, currentPage, 100);
+                            const pageCards = batchRes.cards?.data || batchRes.cards || [];
+                            allBatchCards = [...allBatchCards, ...pageCards];
+                            lastPage = batchRes.cards?.last_page || 1;
+                            currentPage++;
+                        } while (currentPage <= lastPage);
+                        newCards = allBatchCards.length > 0 ? allBatchCards : newCards;
+                    } catch (e) {
+                        console.error('Failed to fetch full batch', e);
+                    }
+                }
+                
+                allCards = newCards.map(card => ({
                     ...card,
                     batchId: response.batch_id,
                     createdAt: new Date().toISOString(),
@@ -610,13 +650,42 @@ const WalletStoreManagement = () => {
         }
     };
 
+    // Helper: fetch ALL wallet store cards by paginating through all pages
+    const fetchAllWalletCards = async () => {
+        if (!selectedStore) return generatedCards;
+        let allCards = [];
+        let currentPage = 1;
+        let lastPage = 1;
+
+        do {
+            const response = await getWalletStoreCards(selectedStore.id, currentPage, 100);
+            if (response.cards && response.cards.data) {
+                allCards = [...allCards, ...response.cards.data];
+                lastPage = response.cards.last_page || 1;
+            } else if (response.cards && Array.isArray(response.cards)) {
+                allCards = [...allCards, ...response.cards];
+                break;
+            } else {
+                break;
+            }
+            currentPage++;
+        } while (currentPage <= lastPage);
+
+        if (allCards.length > 0) {
+            setGeneratedCards(allCards);
+        }
+        return allCards.length > 0 ? allCards : generatedCards;
+    };
+
     // Export functions - using wallet-specific ZIP exporter for consistent card format
     const handleExportZip = async () => {
         if (generatedCards.length === 0) return;
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip' });
         try {
-            await downloadWalletCardsZip(generatedCards, (progress) => {
+            const allCards = await fetchAllWalletCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-zip' });
+            await downloadWalletCardsZip(allCards, (progress) => {
                 setExportProgress(progress);
             }, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
@@ -634,7 +703,9 @@ const WalletStoreManagement = () => {
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip-images' });
         try {
-            await downloadWalletCardsImagesZip(generatedCards, (progress) => {
+            const allCards = await fetchAllWalletCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-zip-images' });
+            await downloadWalletCardsImagesZip(allCards, (progress) => {
                 setExportProgress(progress);
             }, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
@@ -651,9 +722,11 @@ const WalletStoreManagement = () => {
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-sheet' });
         try {
+            const allCards = await fetchAllWalletCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-sheet' });
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetPDF(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
+            await downloadWalletPrintSheetPDF(allCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('Print sheet export failed:', err);
             setError('Failed to export print sheet');
@@ -668,9 +741,11 @@ const WalletStoreManagement = () => {
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-image' });
         try {
+            const allCards = await fetchAllWalletCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-image' });
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-            await downloadWalletPrintSheetImage(generatedCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
+            await downloadWalletPrintSheetImage(allCards, setExportProgress, null, widthMm, heightMm, accountIdType, cardDesignExport, qrLogo);
         } catch (err) {
             console.error('Print sheet image export failed:', err);
             setError('Failed to export print sheet image');
@@ -733,9 +808,24 @@ const WalletStoreManagement = () => {
             // If fetching required logic (similar to other batch exports) - simplifying here assuming generic fetch or reusing logic
             // But strict implementation requires checking partial status like others:
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getWalletBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -770,11 +860,24 @@ const WalletStoreManagement = () => {
             // Check if we need to fetch the full batch
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                // Fetch full batch
-                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
-                    // Update local state to cache it
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getWalletBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -810,11 +913,24 @@ const WalletStoreManagement = () => {
             // Check if we need to fetch the full batch
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                // Fetch full batch
-                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
-                    // Update local state to cache it
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getWalletBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -850,10 +966,24 @@ const WalletStoreManagement = () => {
             // Check if we need to fetch the full batch
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getWalletBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
-                    // Update local state
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getWalletBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }

@@ -69,7 +69,7 @@ export const exportAccountsAsZip = async (accounts, onProgress, customLogo = nul
  */
 export const downloadAccountsZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', cardBackLogo = null) => {
     const zipBlob = await exportAccountsAsZip(accounts, onProgress, customLogo, cardColor, cardBackLogo);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `accounts_${timestamp}_${accounts.length}-cards.zip`);
 };
 
@@ -79,7 +79,7 @@ export const downloadAccountsZip = async (accounts, onProgress, customLogo = nul
 export const exportAccountsAsJSON = (accounts) => {
     const data = JSON.stringify(accounts, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(blob, `accounts_${timestamp}_${accounts.length}.json`);
 };
 
@@ -105,7 +105,7 @@ export const exportAccountsAsCSV = (accounts) => {
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(blob, `accounts_${timestamp}_${accounts.length}.csv`);
 };
 

@@ -19,7 +19,9 @@ const CardBack = ({
 
     return (
         <div className="card-back-preview" style={{
-            width: '100%',
+            width: '400px',
+            maxWidth: '100%',
+            margin: '0 auto',
             aspectRatio: '85.6 / 53.98',
             background: '#FFFFFF',
             borderRadius: '12px',

@@ -1661,19 +1661,25 @@ a:hover {
 
 .account-card-preview.apple-style {
   background: #ffffff;
-  border-radius: var(--border-radius-lg);
+  border-radius: 12px;
   padding: 0;
   overflow: hidden;
-  max-width: 400px;
+  width: 400px;
+  max-width: 100%;
+  margin: 0 auto;
+  aspect-ratio: 85.6 / 53.98;
   box-shadow: var(--shadow-xl);
-  border: 1px solid #ccc;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .apple-card-header {
   background: #0088cc;
   color: white;
   text-align: center;
-  padding: var(--spacing-md);
+  padding: 10px 16px;
   font-weight: bold;
   font-size: var(--font-size-md);
   letter-spacing: 1px;
@@ -1681,8 +1687,10 @@ a:hover {
 
 .apple-card-content {
   display: flex;
-  padding: var(--spacing-md);
-  gap: var(--spacing-md);
+  padding: 1px 16px;
+  gap: 12px;
+  flex: 1;
+  /* allow it to grow without center align crushing height */
 }
 
 .apple-card-qr-section {
@@ -1696,7 +1704,7 @@ a:hover {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: 8px;
 }
 
 .apple-credentials-box {
@@ -1756,7 +1764,7 @@ a:hover {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  padding: var(--spacing-md);
+  padding: 12px 16px;
   padding-top: 0;
   gap: var(--spacing-sm);
 }

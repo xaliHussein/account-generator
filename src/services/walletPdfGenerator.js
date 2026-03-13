@@ -380,6 +380,10 @@ export const downloadWalletCardBackPrintSheetPDF = async (cards, onProgress, boa
  * Reuses renderCardBatchToImages to render individual card canvases, then composites them onto a large canvas
  */
 export const downloadWalletCardBackPrintSheetImage = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
+    // Import JSZip
+    const JSZip = (await import('jszip')).default;
+    const { saveAs } = await import('file-saver');
+
     const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const WalletCardBackComponent = await getWalletCardBackComponent(cardDesign);
 
@@ -448,6 +452,8 @@ export const downloadWalletCardBackPrintSheetImage = async (cards, onProgress, b
     }
 
     // Now composite cards onto large canvases (one per page) and download
+    const zip = new JSZip();
+
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const pageStartIndex = pageIndex * cardsPerPage;
         const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cards.length);
@@ -473,30 +479,39 @@ export const downloadWalletCardBackPrintSheetImage = async (cards, onProgress, b
             ctx.drawImage(allCardImages[i], x, y, cardCanvasWidth, cardCanvasHeight);
         }
 
-        if (onProgress) {
-            onProgress({
-                current: cards.length,
-                total: cards.length,
-                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
-                status: 'creating-image'
-            });
-        }
-
-        // Download as PNG
-        const dataURL = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = dataURL;
-        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+        // Add to ZIP instead of downloading
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
         const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
-        link.download = `wallet-card-backs-print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
+        zip.file(`wallet-card-backs-sheet${pageInfo}.png`, blob);
+
         if (pageIndex < totalPages - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
+
+    if (onProgress) {
+        onProgress({
+            current: cards.length,
+            total: cards.length,
+            percentage: 95,
+            status: 'compressing'
+        });
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (metadata) => {
+        if (onProgress) {
+            onProgress({
+                current: cards.length,
+                total: cards.length,
+                percentage: 95 + Math.round(metadata.percent * 0.05),
+                status: 'compressing'
+            });
+        }
+    });
+
+    const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    saveAs(zipBlob, `wallet-card-backs-sheets-${cards.length}-cards-${boardInfo}-${timestamp}.zip`);
 };
 
 /**
@@ -504,6 +519,10 @@ export const downloadWalletCardBackPrintSheetImage = async (cards, onProgress, b
  * Reuses renderCardBatchToImages to render individual card canvases, then composites them onto a large canvas
  */
 export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate = null, boardWidth = 900, boardHeight = 600, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
+    // Import JSZip
+    const JSZip = (await import('jszip')).default;
+    const { saveAs } = await import('file-saver');
+
     const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const WalletCardComponent = await getWalletCardComponent(cardDesign);
 
@@ -566,6 +585,8 @@ export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate
     const startXPx = Math.round(startXMM * pxPerMM);
     const startYPx = Math.round(startYMM * pxPerMM);
 
+    const zip = new JSZip();
+
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const pageStartIndex = pageIndex * cardsPerPage;
         const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cards.length);
@@ -591,26 +612,39 @@ export const downloadWalletPrintSheetImage = async (cards, onProgress, printDate
             ctx.drawImage(allCardImages[i], x, y, cardCanvasWidth, cardCanvasHeight);
         }
 
+        // Add to ZIP instead of downloading
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
+        zip.file(`wallet-print-sheet${pageInfo}.png`, blob);
+
+        if (pageIndex < totalPages - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+
+    if (onProgress) {
+        onProgress({
+            current: cards.length,
+            total: cards.length,
+            percentage: 95,
+            status: 'compressing'
+        });
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (metadata) => {
         if (onProgress) {
             onProgress({
                 current: cards.length,
                 total: cards.length,
-                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
-                status: 'creating-image'
+                percentage: 95 + Math.round(metadata.percent * 0.05),
+                status: 'compressing'
             });
         }
+    });
 
-        // Download as PNG
-        const dataURL = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = dataURL;
-        const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
-        const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
-        link.download = `wallet-print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
+    const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    saveAs(zipBlob, `wallet-print-sheets-${cards.length}-cards-${boardInfo}-${timestamp}.zip`);
 };
 
 export default {

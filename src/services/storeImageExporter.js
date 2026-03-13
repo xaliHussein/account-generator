@@ -32,7 +32,7 @@ export const ACCOUNT_CARD_CSS_OVERRIDES = `
         width: 100% !important;
         height: 100% !important;
         box-shadow: none !important;
-        border: none !important;
+        border: 1px solid rgba(0, 0, 0, 0.3) !important;
         margin: 0 !important;
         box-sizing: border-box !important;
         background: white !important; /* Force white background */
@@ -317,7 +317,7 @@ export const exportCardBacksImagesAsZip = async (count, onProgress, customLogo =
  */
 export const downloadAccountCardsImagesZip = async (accounts, onProgress, customLogo = null, cardColor = 'blue', qrLogo = null) => {
     const zipBlob = await exportAccountCardsImagesAsZip(accounts, onProgress, customLogo, cardColor, qrLogo);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `accounts_images_${timestamp}_${accounts.length}.zip`);
 };
 
@@ -326,7 +326,7 @@ export const downloadAccountCardsImagesZip = async (accounts, onProgress, custom
  */
 export const downloadCardBacksImagesZip = async (count, onProgress, customLogo = null, cardColor = 'blue', accountIdType = 'apple') => {
     const zipBlob = await exportCardBacksImagesAsZip(count, onProgress, customLogo, cardColor, accountIdType);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `card-backs_images_${timestamp}_${count}.zip`);
 };
 

@@ -894,6 +894,9 @@ export const downloadCardBackPrintSheetPDF = async (cardBackCount, onProgress, b
  * @param {number} boardHeight - Custom board height in mm (default: 900mm = 90cm)
  */
 export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', accountIdType = 'apple', boardWidth = 600, boardHeight = 900) => {
+    // Import JSZip
+    const JSZip = (await import('jszip')).default;
+    const { saveAs } = await import('file-saver');
     // Import required renderers
     const { 
         ACCOUNT_CARD_WIDTH_PX, 
@@ -971,7 +974,9 @@ export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress,
         }
     }
 
-    // 2. Composite onto boards and trigger downloads
+    // 2. Composite onto boards and zip them
+    const zip = new JSZip();
+
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const pageStartIndex = pageIndex * cardsPerPage;
         const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, cardBackCount);
@@ -1006,28 +1011,46 @@ export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress,
             onProgress({
                 current: cardBackCount,
                 total: cardBackCount,
-                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 15),
                 status: 'creating-image'
             });
         }
 
-        // Download PNG
-        const dataURL = canvas.toDataURL('image/png', 1.0);
-        const link = document.createElement('a');
-        link.href = dataURL;
+        // Add to ZIP instead of downloading
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
         const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
         const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
-        link.download = `card-backs-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const fileName = `card-backs-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}.png`;
+        zip.file(fileName, blob);
 
-        // Brief pause between downloads to prevent browser blocking multiple files
+        // Brief pause for UI
         if (pageIndex < totalPages - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
+
+    if (onProgress) {
+        onProgress({
+            current: cardBackCount,
+            total: cardBackCount,
+            percentage: 95,
+            status: 'compressing'
+        });
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (metadata) => {
+        if (onProgress) {
+            onProgress({
+                current: cardBackCount,
+                total: cardBackCount,
+                percentage: 95 + Math.round(metadata.percent * 0.05),
+                status: 'compressing'
+            });
+        }
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    saveAs(zipBlob, `card-backs-sheets-${cardBackCount}-cards-${timestamp}.zip`);
 };
 
 /**
@@ -1044,6 +1067,9 @@ export const downloadCardBackPrintSheetImage = async (cardBackCount, onProgress,
  * @param {string} qrLogo - QR code logo data URL
  */
 export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber = 1, customLogo = null, cardColor = 'blue', boardWidth = DEFAULT_BOARD.width, boardHeight = DEFAULT_BOARD.height, qrLogo = null, customNote = '') => {
+    // Import JSZip
+    const JSZip = (await import('jszip')).default;
+    const { saveAs } = await import('file-saver');
     // Import required renderers
     const { 
         ACCOUNT_CARD_WIDTH_PX, 
@@ -1124,7 +1150,9 @@ export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber 
         await new Promise(resolve => setTimeout(resolve, 10)); // UI breather
     }
 
-    // 2. Composite onto boards and trigger downloads
+    // 2. Composite onto boards and zip them
+    const zip = new JSZip();
+    
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
         const pageStartIndex = pageIndex * cardsPerPage;
         const pageEndIndex = Math.min(pageStartIndex + cardsPerPage, accounts.length);
@@ -1160,28 +1188,46 @@ export const downloadPrintSheetImage = async (accounts, onProgress, batchNumber 
             onProgress({
                 current: accounts.length,
                 total: accounts.length,
-                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 20),
+                percentage: 80 + Math.round(((pageIndex + 1) / totalPages) * 15),
                 status: 'creating-image'
             });
         }
 
-        // Download PNG
-        const dataURL = canvas.toDataURL('image/png', 1.0);
-        const link = document.createElement('a');
-        link.href = dataURL;
+        // Add to ZIP instead of downloading
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
         const boardInfo = `${boardWidth / 10}x${boardHeight / 10}cm`;
         const pageInfo = totalPages > 1 ? `-page${pageIndex + 1}` : '';
-        link.download = `print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}-${new Date().toISOString().split('T')[0]}.png`;
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const fileName = `print-sheet-${pageEndIndex - pageStartIndex}-cards-${boardInfo}${pageInfo}.png`;
+        zip.file(fileName, blob);
 
-        // Brief pause between downloads to prevent browser blocking multiple files
+        // Brief pause for UI
         if (pageIndex < totalPages - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
     }
+
+    if (onProgress) {
+        onProgress({
+            current: accounts.length,
+            total: accounts.length,
+            percentage: 95,
+            status: 'compressing'
+        });
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } }, (metadata) => {
+        if (onProgress) {
+            onProgress({
+                current: accounts.length,
+                total: accounts.length,
+                percentage: 95 + Math.round(metadata.percent * 0.05),
+                status: 'compressing'
+            });
+        }
+    });
+
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    saveAs(zipBlob, `print-sheets-${accounts.length}-cards-${timestamp}.zip`);
 };
 
 export default {

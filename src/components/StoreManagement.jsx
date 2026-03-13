@@ -240,7 +240,26 @@ const StoreManagement = () => {
                         prefix,
                         generateData.password_prefix || null
                     );
-                    allCards = [...allCards, ...(response.cards || [])];
+                    
+                    let newCards = response.cards || [];
+                    if (response.batch_id) {
+                        try {
+                            let allBatchCards = [];
+                            let currentPage = 1;
+                            let lastPage = 1;
+                            do {
+                                const batchRes = await getStoreBatchCards(selectedStore.id, response.batch_id, currentPage, 100);
+                                const pageCards = batchRes.cards?.data || batchRes.cards || [];
+                                allBatchCards = [...allBatchCards, ...pageCards];
+                                lastPage = batchRes.cards?.last_page || 1;
+                                currentPage++;
+                            } while (currentPage <= lastPage);
+                            newCards = allBatchCards.length > 0 ? allBatchCards : newCards;
+                        } catch (e) {
+                            console.error('Failed to fetch full batch', e);
+                        }
+                    }
+                    allCards = [...allCards, ...newCards];
                 }
             } else {
                 // No prefixes: single call with optional single prefix
@@ -252,7 +271,26 @@ const StoreManagement = () => {
                     generateData.email_prefix || null,
                     generateData.password_prefix || null
                 );
-                allCards = response.cards || [];
+                
+                let newCards = response.cards || [];
+                if (response.batch_id) {
+                    try {
+                        let allBatchCards = [];
+                        let currentPage = 1;
+                        let lastPage = 1;
+                        do {
+                            const batchRes = await getStoreBatchCards(selectedStore.id, response.batch_id, currentPage, 100);
+                            const pageCards = batchRes.cards?.data || batchRes.cards || [];
+                            allBatchCards = [...allBatchCards, ...pageCards];
+                            lastPage = batchRes.cards?.last_page || 1;
+                            currentPage++;
+                        } while (currentPage <= lastPage);
+                        newCards = allBatchCards.length > 0 ? allBatchCards : newCards;
+                    } catch (e) {
+                        console.error('Failed to fetch full batch', e);
+                    }
+                }
+                allCards = newCards;
             }
 
             // Store generated cards for export
@@ -275,6 +313,33 @@ const StoreManagement = () => {
         }
     };
 
+    // Helper: fetch ALL store cards by paginating through all pages
+    const fetchAllStoreCards = async () => {
+        if (!selectedStore) return generatedCards;
+        let allCards = [];
+        let currentPage = 1;
+        let lastPage = 1;
+
+        do {
+            const response = await getStoreCardsForExport(selectedStore.id, currentPage, 100);
+            if (response.cards && response.cards.data) {
+                allCards = [...allCards, ...response.cards.data];
+                lastPage = response.cards.last_page || 1;
+            } else if (response.cards && Array.isArray(response.cards)) {
+                allCards = [...allCards, ...response.cards];
+                break;
+            } else {
+                break;
+            }
+            currentPage++;
+        } while (currentPage <= lastPage);
+
+        if (allCards.length > 0) {
+            setGeneratedCards(allCards);
+        }
+        return allCards.length > 0 ? allCards : generatedCards;
+    };
+
     // Export handlers
     const handleExportZip = async () => {
         if (generatedCards.length === 0) return;
@@ -283,7 +348,10 @@ const StoreManagement = () => {
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'packaging' });
 
         try {
-            await downloadAccountsZip(generatedCards, (progress) => {
+            // Fetch all cards if we only have a partial view
+            const allCards = await fetchAllStoreCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'packaging' });
+            await downloadAccountsZip(allCards, (progress) => {
                 setExportProgress(progress);
             }, customLogo, cardColor, cardBackLogo, undefined, undefined, customNote);
         } catch (err) {
@@ -302,11 +370,15 @@ const StoreManagement = () => {
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-sheet' });
 
         try {
+            // Fetch all cards if we only have a partial view
+            const allCards = await fetchAllStoreCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-sheet' });
+
             // Convert cm to mm (or use defaults: 60cm x 90cm = 600mm x 900mm)
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
 
-            await downloadPrintSheetPDF(generatedCards, (progress) => {
+            await downloadPrintSheetPDF(allCards, (progress) => {
                 setExportProgress(progress);
             }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
@@ -325,11 +397,15 @@ const StoreManagement = () => {
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-image' });
 
         try {
+            // Fetch all cards if we only have a partial view
+            const allCards = await fetchAllStoreCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-image' });
+
             // Convert cm to mm (or use defaults: 60cm x 90cm = 600mm x 900mm)
             const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
             const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
 
-            await downloadPrintSheetImage(generatedCards, (progress) => {
+            await downloadPrintSheetImage(allCards, (progress) => {
                 setExportProgress(progress);
             }, 1, customLogo, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
@@ -376,9 +452,24 @@ const StoreManagement = () => {
             // Fetch all batch cards if only partial data is loaded
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getStoreBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getStoreBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -418,9 +509,24 @@ const StoreManagement = () => {
             // Fetch all batch cards if only partial data is loaded
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getStoreBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getStoreBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -460,9 +566,24 @@ const StoreManagement = () => {
             // Fetch all batch cards if only partial data is loaded
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getStoreBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getStoreBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }
@@ -597,7 +718,9 @@ const StoreManagement = () => {
         setActionLoading(true);
         setExportProgress({ current: 0, total: generatedCards.length, percentage: 0, status: 'creating-zip-images' });
         try {
-            await downloadAccountCardsImagesZip(generatedCards, (progress) => {
+            const allCards = await fetchAllStoreCards();
+            setExportProgress({ current: 0, total: allCards.length, percentage: 0, status: 'creating-zip-images' });
+            await downloadAccountCardsImagesZip(allCards, (progress) => {
                 setExportProgress(progress);
             }, customLogo, cardColor, qrLogo);
         } catch (err) {
@@ -639,9 +762,24 @@ const StoreManagement = () => {
             // Check if we need to fetch the full batch
             let cardsToExport = batch.cards;
             if (batch.isPartial || cardsToExport.length < (batch.count || 0)) {
-                const response = await getStoreBatchCards(selectedStore.id, batchId, 1, 10000);
-                if (response.cards) {
-                    cardsToExport = response.cards.data || response.cards;
+                let allBatchCards = [];
+                let currentPage = 1;
+                let lastPage = 1;
+
+                do {
+                    const response = await getStoreBatchCards(selectedStore.id, batchId, currentPage, 1000);
+                    if (response.cards) {
+                        const newCards = response.cards.data || response.cards;
+                        allBatchCards = [...allBatchCards, ...newCards];
+                        lastPage = response.cards.last_page || 1;
+                    } else {
+                        break;
+                    }
+                    currentPage++;
+                } while (currentPage <= lastPage);
+
+                if (allBatchCards.length > 0) {
+                    cardsToExport = allBatchCards;
                     setCardsByBatch(prev => ({
                         ...prev,
                         [batchId]: { ...prev[batchId], cards: cardsToExport, isPartial: false }

@@ -445,7 +445,7 @@ export const exportWalletCardBacksAsZip = async (count, onProgress, walletType =
  */
 export const downloadWalletCardsZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zipBlob = await exportWalletCardsAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards.zip`);
 };
 
@@ -454,7 +454,7 @@ export const downloadWalletCardsZip = async (cards, onProgress, walletType = 'ap
  */
 export const downloadWalletCardsWithTiffZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zipBlob = await exportWalletCardsWithTiffAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards_pdf+images.zip`);
 };
 
@@ -463,7 +463,7 @@ export const downloadWalletCardsWithTiffZip = async (cards, onProgress, walletTy
  */
 export const downloadWalletCardsImagesZip = async (cards, onProgress, walletType = 'apple', cardDesign = 'classic', qrLogo = null) => {
     const zipBlob = await exportWalletCardsImagesOnlyAsZip(cards, onProgress, walletType, cardDesign, qrLogo);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `wallet-cards_${timestamp}_${cards.length}-cards_images.zip`);
 };
 
@@ -472,7 +472,7 @@ export const downloadWalletCardsImagesZip = async (cards, onProgress, walletType
  */
 export const downloadWalletCardBacksImagesZip = async (count, onProgress, walletType = 'apple', cardDesign = 'classic') => {
     const zipBlob = await exportWalletCardBacksAsZip(count, onProgress, walletType, cardDesign);
-    const timestamp = new Date().toISOString().slice(0, 10);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `wallet-card-backs_${timestamp}_${count}-cards.zip`);
 };
 
