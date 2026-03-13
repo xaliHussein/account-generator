@@ -489,7 +489,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetPDF(cardsToExport, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo);
+            }, 1, customLogo, undefined, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
             console.error('Batch print sheet export failed:', err);
             setError('Failed to export batch print sheet');
@@ -546,7 +546,7 @@ const StoreManagement = () => {
 
             await downloadPrintSheetImage(cardsToExport, (progress) => {
                 setExportProgress(progress);
-            }, 1, customLogo, cardColor, widthMm, heightMm, qrLogo);
+            }, 1, customLogo, cardColor, widthMm, heightMm, qrLogo, customNote);
         } catch (err) {
             console.error('Batch print sheet image export failed:', err);
             setError('Failed to export batch print sheet image');
