@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardStats, getDashboardStores, getRecentActivity, searchEmail, getWalletDashboardStats, getWalletDashboardStores, getSettings, updateSettings, downloadBackup } from '../services/api';
 import { searchWalletPhone, getWalletRecentScans } from '../services/walletApi';
+import { getIdDashboardStats, getIdDashboardStores, searchIdPhone, getIdRecentScans } from '../services/idApi';
 import { Store, CreditCard, Users, Activity, TrendingUp, AlertCircle, CheckCircle, XCircle, Search, Mail, Wallet, Lock, Unlock, Phone, ArrowUp, ArrowDown, MessageCircle, Download, Loader2 } from 'lucide-react';
 
 /**
@@ -49,7 +50,8 @@ const Dashboard = () => {
 
     // Navigation handler based on card type
     const handleNavigateToStores = () => {
-        navigate(cardType === 'wallet' ? '/sys-admin/wallet-stores' : '/sys-admin/stores');
+        const path = cardType === 'wallet' ? '/sys-admin/wallet-stores' : cardType === 'id' ? '/sys-admin/id-stores' : '/sys-admin/stores';
+        navigate(path);
     };
 
     const handleCardTypeChange = (type) => {
@@ -139,14 +141,17 @@ const Dashboard = () => {
                     setActivityTotalPages(activityData.recent_scans.last_page);
                 }
             } else {
+                const isId = cardType === 'id';
                 const [statsData, storesData, activityData] = await Promise.all([
-                    getWalletDashboardStats(),
-                    getWalletDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
-                    getWalletRecentScans(activityPage, ACTIVITY_PER_PAGE),
+                    isId ? getIdDashboardStats() : getWalletDashboardStats(),
+                    isId
+                        ? getIdDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder)
+                        : getWalletDashboardStores(page, ITEMS_PER_PAGE, storeSearchQuery, storeSortOrder),
+                    isId ? getIdRecentScans(activityPage, ACTIVITY_PER_PAGE) : getWalletRecentScans(activityPage, ACTIVITY_PER_PAGE),
                 ]);
                 setStats(statsData);
 
-                // Handle paginated wallet stores data
+                // Handle paginated wallet/ID stores data
                 if (storesData && storesData.data) {
                     setStores(storesData.data);
                     setTotalPages(storesData.last_page || 1);
@@ -195,6 +200,9 @@ const Dashboard = () => {
             if (cardType === 'regular') {
                 const response = await searchEmail(query);
                 setSearchResults(response.results || []);
+            } else if (cardType === 'id') {
+                const response = await searchIdPhone(query);
+                setSearchResults(response.results || []);
             } else {
                 const response = await searchWalletPhone(query);
                 setSearchResults(response.results || []);
@@ -206,6 +214,8 @@ const Dashboard = () => {
             setSearchLoading(false);
         }
     };
+
+    const typeWord = cardType === 'wallet' ? 'Wallet' : cardType === 'id' ? 'ID' : '';
 
     if (loading && stores.length === 0) {
         return (
@@ -233,7 +243,7 @@ const Dashboard = () => {
             <div className="dashboard-header">
                 <div>
                     <h2>Dashboard</h2>
-                    <p>Overview of your {cardType === 'regular' ? 'stores and cards' : 'wallet stores and cards'}</p>
+                    <p>Overview of your {cardType === 'regular' ? 'stores and cards' : cardType === 'id' ? 'ID stores and cards' : 'wallet stores and cards'}</p>
                 </div>
                 {/* Card Type Toggle */}
                 <div style={{
@@ -283,6 +293,26 @@ const Dashboard = () => {
                     >
                         <Wallet size={16} />
                         Wallet Cards
+                    </button>
+                    <button
+                        onClick={() => handleCardTypeChange('id')}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 16px',
+                            borderRadius: 'var(--border-radius-md)',
+                            cursor: 'pointer',
+                            fontSize: 'var(--font-size-sm)',
+                            fontWeight: 'var(--font-weight-medium)',
+                            transition: 'all 0.2s ease',
+                            background: cardType === 'id' ? 'var(--color-accent-purple, #9333ea)' : 'transparent',
+                            color: cardType === 'id' ? 'white' : 'var(--color-text-secondary)',
+                            border: 'none'
+                        }}
+                    >
+                        <CreditCard size={16} />
+                        ID Cards
                     </button>
                 </div>
             </div>
@@ -371,7 +401,7 @@ const Dashboard = () => {
                     </div>
                     <div className="stat-content">
                         <div className="stat-value">{stats?.stores?.total || 0}</div>
-                        <div className="stat-label">{cardType === 'regular' ? 'Total Stores' : 'Wallet Stores'}</div>
+                        <div className="stat-label">{cardType === 'regular' ? 'Total Stores' : `${typeWord} Stores`}</div>
                         <div className="stat-detail">
                             <span className="active">{stats?.stores?.active || 0} active</span>
                         </div>
@@ -380,11 +410,11 @@ const Dashboard = () => {
 
                 <div className="stat-card">
                     <div className="stat-icon cards">
-                        {cardType === 'regular' ? <CreditCard size={24} /> : <Wallet size={24} />}
+                        {cardType === 'wallet' ? <Wallet size={24} /> : <CreditCard size={24} />}
                     </div>
                     <div className="stat-content">
                         <div className="stat-value">{stats?.cards?.total || 0}</div>
-                        <div className="stat-label">{cardType === 'regular' ? 'Total Cards' : 'Wallet Cards'}</div>
+                        <div className="stat-label">{cardType === 'regular' ? 'Total Cards' : `${typeWord} Cards`}</div>
                         <div className="stat-detail">
                             {cardType === 'regular' ? (
                                 <>
@@ -564,7 +594,7 @@ const Dashboard = () => {
                                         fontSize: 'var(--font-size-xs)',
                                         color: 'var(--color-text-tertiary)'
                                     }}>
-                                        {card.first_name} {card.last_name}
+                                        {cardType === 'id' ? card.email : `${card.first_name || ''} ${card.last_name || ''}`}
                                     </span>
                                     <span style={{
                                         fontSize: 'var(--font-size-xs)',
@@ -583,7 +613,7 @@ const Dashboard = () => {
             <div className="dashboard-section">
                 <div className="section-header">
                     <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {cardType === 'regular' ? 'Stores Overview' : 'Wallet Stores Overview'}
+                        {cardType === 'regular' ? 'Stores Overview' : `${typeWord} Stores Overview`}
                         {loading && <div className="spinner-small"></div>}
                     </h3>
                     <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
@@ -629,7 +659,7 @@ const Dashboard = () => {
                             {storeSortOrder === 'desc' ? 'Newest' : 'Oldest'}
                         </button>
                         <button onClick={handleNavigateToStores} className="btn btn-secondary-enhanced">
-                            {cardType === 'regular' ? 'Manage Stores' : 'Manage Wallet Stores'}
+                            {cardType === 'regular' ? 'Manage Stores' : `Manage ${typeWord} Stores`}
                         </button>
                     </div>
                 </div>
@@ -671,7 +701,9 @@ const Dashboard = () => {
                         }}>
                             {cardType === 'regular'
                                 ? 'Create your first store to get started with account generation'
-                                : 'Create your first wallet store to get started with wallet cards'}
+                                : cardType === 'id'
+                                    ? 'Create your first ID store to get started with ID cards'
+                                    : 'Create your first wallet store to get started with wallet cards'}
                         </p>
                         <button
                             onClick={handleNavigateToStores}
@@ -691,7 +723,7 @@ const Dashboard = () => {
                                 transition: 'all 0.3s ease'
                             }}
                         >
-                            {cardType === 'regular' ? 'Create Store' : 'Create Wallet Store'}
+                            {cardType === 'regular' ? 'Create Store' : `Create ${typeWord} Store`}
                         </button>
                     </div>
                 ) : (
@@ -812,14 +844,14 @@ const Dashboard = () => {
                                 {scansData.map((scan) => (
                                     <div key={scan.id} className="activity-item">
                                         <div className="activity-icon">
-                                            {cardType === 'wallet' ? <Lock size={16} /> : <Users size={16} />}
+                                            {cardType === 'regular' ? <Users size={16} /> : <Lock size={16} />}
                                         </div>
                                         <div className="activity-content">
                                             <div className="activity-title">
-                                                {scan.first_name} {scan.last_name}
+                                                {cardType === 'id' ? scan.email : `${scan.first_name} ${scan.last_name}`}
                                             </div>
                                             <div className="activity-detail">
-                                                Phone: {scan.phone_number} • {cardType === 'wallet' ? 'Serial' : 'Store'}: {cardType === 'wallet' ? scan.serial_number : (scan.store?.name || 'Unknown')}
+                                                Phone: {scan.phone_number} • {cardType !== 'regular' ? 'Serial' : 'Store'}: {cardType !== 'regular' ? scan.serial_number : (scan.store?.name || 'Unknown')}
                                             </div>
                                         </div>
                                         <div className="activity-time">

@@ -8,7 +8,9 @@ import Dashboard from './components/Dashboard.jsx'
 import StoreManagement from './components/StoreManagement.jsx'
 import SystemTransfer from './components/SystemTransfer.jsx'
 import WalletStoreManagement from './components/WalletStoreManagement.jsx'
+import IdStoreManagement from './components/IdStoreManagement.jsx'
 import WalletCardView from './components/WalletCardView.jsx'
+import IdCardView from './components/IdCardView.jsx'
 import NotFound from './components/NotFound.jsx'
 import './index.css'
 
@@ -27,6 +29,8 @@ const MainApp = () => {
             setCurrentView('dashboard');
         } else if (location.pathname.includes('wallet-stores')) {
             setCurrentView('wallet');
+        } else if (location.pathname.includes('id-stores')) {
+            setCurrentView('id');
         } else if (location.pathname.includes('stores')) {
             setCurrentView('stores');
         } else if (location.pathname.includes('transfer')) {
@@ -79,6 +83,12 @@ const MainApp = () => {
                             Wallet Cards
                         </button>
                         <button
+                            className={`nav-link ${currentView === 'id' ? 'active' : ''}`}
+                            onClick={() => navigate('/sys-admin/id-stores')}
+                        >
+                            ID Cards
+                        </button>
+                        <button
                             className={`nav-link ${currentView === 'transfer' ? 'active' : ''}`}
                             onClick={() => navigate('/sys-admin/transfer')}
                         >
@@ -103,6 +113,7 @@ const MainApp = () => {
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="stores" element={<StoreManagement />} />
                     <Route path="wallet-stores" element={<WalletStoreManagement />} />
+                    <Route path="id-stores" element={<IdStoreManagement />} />
                     <Route path="generator" element={<App />} />
                     <Route path="transfer" element={<SystemTransfer />} />
                     <Route path="*" element={<Navigate to="/sys-admin/dashboard" replace />} />
@@ -137,6 +148,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Route path="/view" element={<ViewAccountPage />} />
             {/* Public route - wallet card view */}
             <Route path="/wallet/:token" element={<WalletCardView />} />
+            {/* Public route - ID card view */}
+            <Route path="/id/:token" element={<IdCardView />} />
 
             {/* Secure /sys-admin path for the application */}
             <Route path="/sys-admin/*" element={<ProtectedApp />} />
