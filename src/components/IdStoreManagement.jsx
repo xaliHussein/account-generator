@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    getIdStores, createIdStore, updateIdStore, deleteIdStore,
+    getIdStores, createIdStore, updateIdStore, deleteIdStore, getIdStore,
     importIdCardsFile, getIdStoreCards, getIdBatchCards,
     deleteIdBatch, lockIdStoreCards, unlockIdStoreCards
 } from '../services/idApi';
@@ -11,16 +11,19 @@ import {
 import {
     downloadIdCardsZip, downloadIdCardsImagesZip, downloadIdCardBacksImagesZip
 } from '../services/idZipExporter';
+import { resizeImageToDataUrl, validateImageFile } from '../services/imageUtils';
 import IdCard from './IdCard';
 import IdCardLight from './IdCardLight';
 import IdCardBack from './IdCardBack';
 import IdCardBackLight from './IdCardBackLight';
+import IdCardCustom from './IdCardCustom';
+import IdCardBackCustom from './IdCardBackCustom';
 import Card from './ui/Card';
 import Pagination from './ui/Pagination';
 import {
     Plus, Edit2, Trash2, CreditCard, X, AlertCircle, Download, Printer, Eye,
     List, ArrowUp, ArrowDown, FileArchive, Upload, Check, Search, Lock, Unlock,
-    FileText, ExternalLink
+    FileText, ExternalLink, Image as ImageIcon
 } from 'lucide-react';
 
 /**
@@ -49,7 +52,7 @@ const IdStoreManagement = () => {
     // Store form state
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [editingStore, setEditingStore] = useState(null);
-    const [formData, setFormData] = useState({ name: '', location: '', contact_email: '', contact_phone: '' });
+    const [formData, setFormData] = useState({ name: '', location: '', contact_email: '', contact_phone: '', instagram: '', tiktok: '', logo: '', show_store_info: false });
 
     const [selectedStore, setSelectedStore] = useState(null);
     const [currentViewStoreId, setCurrentViewStoreId] = useState(null);
@@ -83,6 +86,14 @@ const IdStoreManagement = () => {
     const [exportProgress, setExportProgress] = useState(null);
     const [cardDesignExport, setCardDesignExport] = useState('classic');
     const [exportingCsv, setExportingCsv] = useState(false);
+
+    // Custom card design images (per store)
+    const [customFront, setCustomFront] = useState(null);
+    const [customBack, setCustomBack] = useState(null);
+    const [designSaving, setDesignSaving] = useState(false);
+    const customFrontRef = useRef(null);
+    const customBackRef = useRef(null);
+    const logoInputRef = useRef(null);
 
     // Confirmation modal
     const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', type: 'warning', confirmText: 'Confirm', onConfirm: null });
@@ -154,7 +165,7 @@ const IdStoreManagement = () => {
         try {
             await createIdStore(formData);
             setShowCreateForm(false);
-            setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
+            setFormData({ name: '', location: '', contact_email: '', contact_phone: '', instagram: '', tiktok: '', logo: '', show_store_info: false });
             await loadStores(1);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to create ID store');
@@ -169,7 +180,7 @@ const IdStoreManagement = () => {
         try {
             await updateIdStore(editingStore.id, formData);
             setEditingStore(null);
-            setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
+            setFormData({ name: '', location: '', contact_email: '', contact_phone: '', instagram: '', tiktok: '', logo: '', show_store_info: false });
             await loadStores(storePage);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to update ID store');
@@ -201,18 +212,27 @@ const IdStoreManagement = () => {
     };
 
     const openCreateForm = () => {
-        setFormData({ name: '', location: '', contact_email: '', contact_phone: '' });
+        setFormData({ name: '', location: '', contact_email: '', contact_phone: '', instagram: '', tiktok: '', logo: '', show_store_info: false });
         setShowCreateForm(true);
     };
 
-    const openEditForm = (store) => {
+    const openEditForm = async (store) => {
         setEditingStore(store);
         setFormData({
             name: store.name,
             location: store.location || '',
             contact_email: store.contact_email || '',
             contact_phone: store.contact_phone || '',
+            instagram: store.instagram || '',
+            tiktok: store.tiktok || '',
+            logo: '',
+            show_store_info: !!store.show_store_info,
         });
+        // Fetch the full store to load the logo (excluded from the list for performance)
+        try {
+            const full = await getIdStore(store.id);
+            setFormData((prev) => ({ ...prev, logo: full.logo || '' }));
+        } catch (e) { /* keep partial form */ }
     };
 
     // ==================== Generate (Excel upload) ====================
@@ -288,10 +308,142 @@ const IdStoreManagement = () => {
     // ==================== Cards / export modal ====================
 
     const handleViewCards = async (store) => {
-        setSelectedStore(store);
         setCurrentViewStoreId(store.id);
+        setCardDesignExport('classic');
+        // Load the full store (card design images are excluded from the list)
+        let full = store;
+        try { full = await getIdStore(store.id); } catch (e) { /* fall back to list data */ }
+        setSelectedStore(full);
+        setCustomFront(full.card_front_image || null);
+        setCustomBack(full.card_back_image || null);
         await fetchStoreCards(store.id, 1);
     };
+
+    // Upload + save a custom card design image (front/back) to the store.
+    const handleCustomImageUpload = async (event, side) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file || !selectedStore) return;
+        const err = validateImageFile(file, 10 * 1024 * 1024);
+        if (err) { setError(err); return; }
+        setDesignSaving(true);
+        setError(null);
+        try {
+            const dataUrl = await resizeImageToDataUrl(file, 1400, 1400, 0.9);
+            const payload = side === 'front' ? { card_front_image: dataUrl } : { card_back_image: dataUrl };
+            await updateIdStore(selectedStore.id, payload);
+            if (side === 'front') setCustomFront(dataUrl); else setCustomBack(dataUrl);
+        } catch (e) {
+            setError('Failed to save the card image');
+        } finally {
+            setDesignSaving(false);
+        }
+    };
+
+    const handleClearCustomImage = async (side) => {
+        if (!selectedStore) return;
+        setDesignSaving(true);
+        try {
+            const payload = side === 'front' ? { card_front_image: null } : { card_back_image: null };
+            await updateIdStore(selectedStore.id, payload);
+            if (side === 'front') setCustomFront(null); else setCustomBack(null);
+        } catch (e) {
+            setError('Failed to remove the card image');
+        } finally {
+            setDesignSaving(false);
+        }
+    };
+
+    // Logo upload inside the create/edit store form (kept small, stored as data URL)
+    const handleLogoFormUpload = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        const err = validateImageFile(file, 5 * 1024 * 1024);
+        if (err) { setError(err); return; }
+        try {
+            const dataUrl = await resizeImageToDataUrl(file, 400, 400, 0.9);
+            setFormData((prev) => ({ ...prev, logo: dataUrl }));
+        } catch (e) {
+            setError('Failed to process logo');
+        }
+    };
+
+    // Full store form (shared by Create + Edit modals), grouped into clean sections.
+    const renderStoreForm = () => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+            {/* Store details */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                <div style={formSectionTitle}>Store Details</div>
+                <div className="form-group" style={{ margin: 0 }}>
+                    <label>Store Name *</label>
+                    <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter store name" />
+                </div>
+                <div style={formGrid2}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                        <label>Location / Address</label>
+                        <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="City, Country" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                        <label>Contact Phone</label>
+                        <input type="text" value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} placeholder="+1 555 000 0000" />
+                    </div>
+                </div>
+                <div className="form-group" style={{ margin: 0 }}>
+                    <label>Contact Email</label>
+                    <input type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} placeholder="store@example.com" />
+                </div>
+            </div>
+
+            {/* Branding & social */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                <div style={formSectionTitle}>Branding &amp; Social</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', padding: 'var(--spacing-md)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', border: '1px solid var(--border-color)' }}>
+                    {formData.logo ? (
+                        <img src={formData.logo} alt="logo" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 12, border: '1px solid var(--border-color)' }} />
+                    ) : (
+                        <div style={{ width: 60, height: 60, borderRadius: 12, border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-tertiary)' }}><ImageIcon size={22} /></div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>Store Logo</div>
+                        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>Shown on the customer card page. Square image recommended.</div>
+                    </div>
+                    <label className="btn btn-secondary-enhanced" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        <Upload size={14} /> {formData.logo ? 'Change' : 'Upload'}
+                        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFormUpload} style={{ display: 'none' }} />
+                    </label>
+                    {formData.logo && (
+                        <button type="button" className="btn btn-ghost" style={{ color: 'var(--color-accent-red)', padding: '6px' }} onClick={() => setFormData({ ...formData, logo: '' })} title="Remove logo"><X size={16} /></button>
+                    )}
+                </div>
+                <div style={formGrid2}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                        <label>Instagram</label>
+                        <input type="text" value={formData.instagram} onChange={(e) => setFormData({ ...formData, instagram: e.target.value })} placeholder="@username or link" />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                        <label>TikTok</label>
+                        <input type="text" value={formData.tiktok} onChange={(e) => setFormData({ ...formData, tiktok: e.target.value })} placeholder="@username or link" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Show store info toggle */}
+            <button
+                type="button"
+                onClick={() => setFormData({ ...formData, show_store_info: !formData.show_store_info })}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--spacing-md)', padding: 'var(--spacing-md)', width: '100%', textAlign: 'left', cursor: 'pointer', borderRadius: 'var(--border-radius-md)', background: formData.show_store_info ? 'rgba(0,122,255,0.08)' : 'var(--color-bg-secondary)', border: `1px solid ${formData.show_store_info ? 'var(--color-accent-blue)' : 'var(--border-color)'}`, transition: 'all 0.2s ease' }}
+            >
+                <div>
+                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>Show store info on the card page</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Display logo, name, Instagram, TikTok, phone &amp; address to customers</div>
+                </div>
+                <span style={{ position: 'relative', width: 46, height: 26, borderRadius: 13, flexShrink: 0, background: formData.show_store_info ? 'var(--color-accent-blue)' : 'var(--color-bg-tertiary)', transition: 'background 0.2s ease' }}>
+                    <span style={{ position: 'absolute', top: 3, left: formData.show_store_info ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', transition: 'left 0.2s ease' }} />
+                </span>
+            </button>
+        </div>
+    );
 
     const fetchStoreCards = async (storeId, page = 1) => {
         setActionLoading(true);
@@ -409,14 +561,14 @@ const IdStoreManagement = () => {
         if (generatedCards.length === 0) return;
         setExportProgress({ percentage: 0, status: 'creating-zip' });
         const allCards = await fetchAllIdCards();
-        await downloadIdCardsZip(allCards, setExportProgress, cardDesignExport, qrLogo);
+        await downloadIdCardsZip(allCards, setExportProgress, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportZipImages = () => runExport(async () => {
         if (generatedCards.length === 0) return;
         setExportProgress({ percentage: 0, status: 'creating-zip-images' });
         const allCards = await fetchAllIdCards();
-        await downloadIdCardsImagesZip(allCards, setExportProgress, cardDesignExport, qrLogo);
+        await downloadIdCardsImagesZip(allCards, setExportProgress, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportPrintSheet = () => runExport(async () => {
@@ -425,7 +577,7 @@ const IdStoreManagement = () => {
         const allCards = await fetchAllIdCards();
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-        await downloadIdPrintSheetPDF(allCards, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo);
+        await downloadIdPrintSheetPDF(allCards, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportPrintSheetImage = () => runExport(async () => {
@@ -434,7 +586,7 @@ const IdStoreManagement = () => {
         const allCards = await fetchAllIdCards();
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-        await downloadIdPrintSheetImage(allCards, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo);
+        await downloadIdPrintSheetImage(allCards, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportCardBackPrintSheet = () => runExport(async () => {
@@ -443,19 +595,19 @@ const IdStoreManagement = () => {
         setExportProgress({ percentage: 0, status: 'creating-cardback-sheet' });
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
-        await downloadIdCardBackPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport);
+        await downloadIdCardBackPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, { front: customFront, back: customBack });
     });
 
     const handleExportCardBacksImages = () => runExport(async () => {
         const count = cardBackCount ? parseInt(cardBackCount, 10) : generatedCards.length;
         if (count <= 0) return;
         setExportProgress({ percentage: 0, status: 'creating-cardback-zip' });
-        await downloadIdCardBacksImagesZip(count, setExportProgress, cardDesignExport);
+        await downloadIdCardBacksImagesZip(count, setExportProgress, cardDesignExport, { front: customFront, back: customBack });
     });
 
     const handleDownloadCardPDF = async (card) => {
         try {
-            await downloadIdCardPDF(card, qrLogo);
+            await downloadIdCardPDF(card, qrLogo, cardDesignExport, { front: customFront, back: customBack });
         } catch (err) {
             setError('Failed to download PDF');
         }
@@ -505,7 +657,7 @@ const IdStoreManagement = () => {
         const cardsToExport = await ensureFullBatch(batchId);
         if (cardsToExport.length === 0) return;
         setExportProgress({ percentage: 0, status: 'creating-zip-images' });
-        await downloadIdCardsImagesZip(cardsToExport, setExportProgress, cardDesignExport, qrLogo);
+        await downloadIdCardsImagesZip(cardsToExport, setExportProgress, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportBatchPrintSheet = (batchId) => runExport(async () => {
@@ -514,7 +666,7 @@ const IdStoreManagement = () => {
         setExportProgress({ percentage: 0, status: 'creating-sheet' });
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-        await downloadIdPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo);
+        await downloadIdPrintSheetPDF(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportBatchPrintSheetImage = (batchId) => runExport(async () => {
@@ -523,7 +675,7 @@ const IdStoreManagement = () => {
         setExportProgress({ percentage: 0, status: 'creating-image' });
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 900;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 600;
-        await downloadIdPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo);
+        await downloadIdPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, qrLogo, { front: customFront, back: customBack });
     });
 
     const handleExportBatchCardBackPrintSheet = (batchId) => runExport(async () => {
@@ -532,7 +684,7 @@ const IdStoreManagement = () => {
         setExportProgress({ percentage: 0, status: 'creating-cardback-sheet' });
         const widthMm = boardWidth ? parseFloat(boardWidth) * 10 : 600;
         const heightMm = boardHeight ? parseFloat(boardHeight) * 10 : 900;
-        await downloadIdCardBackPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport);
+        await downloadIdCardBackPrintSheetImage(cardsToExport, setExportProgress, widthMm, heightMm, cardDesignExport, { front: customFront, back: customBack });
     });
 
     const handleDeleteBatch = (batchId, count) => {
@@ -750,12 +902,53 @@ const IdStoreManagement = () => {
 
                             <div style={{ padding: 'var(--spacing-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xl)' }}>
                                 {/* Card Design Selector */}
-                                <div style={{ display: 'flex', gap: 'var(--spacing-md)', padding: 'var(--spacing-md)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--border-color)', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Card Design:</span>
-                                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flex: 1 }}>
-                                        <button onClick={() => setCardDesignExport('classic')} className={`btn ${cardDesignExport === 'classic' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 'var(--font-size-sm)' }}>🌙 Classic (Dark)</button>
-                                        <button onClick={() => setCardDesignExport('light')} className={`btn ${cardDesignExport === 'light' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 'var(--font-size-sm)' }}>☀️ Elegant (Light)</button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', padding: 'var(--spacing-md)', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--border-color)' }}>
+                                    <div style={{ display: 'flex', gap: 'var(--spacing-md)', alignItems: 'center' }}>
+                                        <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Card Design:</span>
+                                        <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flex: 1, flexWrap: 'wrap' }}>
+                                            <button onClick={() => setCardDesignExport('classic')} className={`btn ${cardDesignExport === 'classic' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 'var(--font-size-sm)', minWidth: '120px' }}>🌙 Classic (Dark)</button>
+                                            <button onClick={() => setCardDesignExport('light')} className={`btn ${cardDesignExport === 'light' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 'var(--font-size-sm)', minWidth: '120px' }}>☀️ Elegant (Light)</button>
+                                            <button onClick={() => setCardDesignExport('custom')} className={`btn ${cardDesignExport === 'custom' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, fontSize: 'var(--font-size-sm)', minWidth: '120px' }}>🖼️ Custom (Image)</button>
+                                        </div>
                                     </div>
+
+                                    {cardDesignExport === 'custom' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                                            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
+                                                Upload your own front & back artwork. Recommended size <strong>1012 × 638 px</strong> (CR80 card, ~1.6∶1), max 10MB. Images are stored on the store.
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap' }}>
+                                                {['front', 'back'].map((side) => {
+                                                    const img = side === 'front' ? customFront : customBack;
+                                                    const ref = side === 'front' ? customFrontRef : customBackRef;
+                                                    return (
+                                                        <div key={side} style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                            <label style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{side === 'front' ? 'Front image' : 'Back image'}</label>
+                                                            <div
+                                                                onClick={() => !designSaving && ref.current?.click()}
+                                                                style={{ position: 'relative', border: `2px dashed ${img ? 'var(--color-accent-blue)' : 'var(--border-color)'}`, borderRadius: 'var(--border-radius-md)', background: 'var(--color-bg-primary)', cursor: designSaving ? 'wait' : 'pointer', aspectRatio: '1.6 / 1', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                            >
+                                                                <input ref={ref} type="file" accept="image/*" onChange={(e) => handleCustomImageUpload(e, side)} style={{ display: 'none' }} />
+                                                                {img ? (
+                                                                    <img src={img} alt={`${side}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: 'var(--color-text-tertiary)', fontSize: 'var(--font-size-xs)' }}>
+                                                                        <ImageIcon size={22} /> Click to upload
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {img && (
+                                                                <button onClick={() => handleClearCustomImage(side)} className="btn btn-ghost" disabled={designSaving} style={{ color: 'var(--color-accent-red)', fontSize: 'var(--font-size-xs)', alignSelf: 'flex-start', padding: '2px 6px' }}>
+                                                                    <X size={12} /> Remove
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {designSaving && <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-accent-blue)' }}>Saving design…</div>}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Export Progress */}
@@ -831,7 +1024,7 @@ const IdStoreManagement = () => {
                                         <Card.Body style={{ padding: 'var(--spacing-md)', display: 'flex', justifyContent: 'center' }}>
                                             {selectedPreviewCard && (
                                                 <div style={{ transform: 'scale(0.85)', transformOrigin: 'center' }}>
-                                                    {cardDesignExport === 'light' ? <IdCardLight card={selectedPreviewCard} qrLogo={qrLogo} /> : <IdCard card={selectedPreviewCard} qrLogo={qrLogo} />}
+                                                    {cardDesignExport === 'custom' ? <IdCardCustom card={selectedPreviewCard} image={customFront} qrLogo={qrLogo} /> : cardDesignExport === 'light' ? <IdCardLight card={selectedPreviewCard} qrLogo={qrLogo} /> : <IdCard card={selectedPreviewCard} qrLogo={qrLogo} />}
                                                 </div>
                                             )}
                                         </Card.Body>
@@ -844,7 +1037,7 @@ const IdStoreManagement = () => {
                                         </Card.Header>
                                         <Card.Body style={{ padding: 'var(--spacing-md)', display: 'flex', justifyContent: 'center' }}>
                                             <div style={{ transform: 'scale(0.85)', transformOrigin: 'center' }}>
-                                                {cardDesignExport === 'light' ? <IdCardBackLight /> : <IdCardBack />}
+                                                {cardDesignExport === 'custom' ? <IdCardBackCustom image={customBack} /> : cardDesignExport === 'light' ? <IdCardBackLight /> : <IdCardBack />}
                                             </div>
                                         </Card.Body>
                                     </Card>
@@ -952,17 +1145,14 @@ const IdStoreManagement = () => {
                 {/* Create Store Modal */}
                 {showCreateForm && (
                     <div className="modal-overlay">
-                        <div className="modal">
+                        <div className="modal" style={{ maxWidth: '620px' }}>
                             <div className="modal-header">
                                 <h3>Create ID Store</h3>
                                 <button onClick={() => setShowCreateForm(false)}><X size={20} /></button>
                             </div>
                             <form onSubmit={handleCreateStore}>
-                                <div className="modal-body">
-                                    <div className="form-group"><label>Store Name *</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required placeholder="Enter store name" /></div>
-                                    <div className="form-group"><label>Location</label><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="City, Country" /></div>
-                                    <div className="form-group"><label>Contact Email</label><input type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} placeholder="store@example.com" /></div>
-                                    <div className="form-group"><label>Contact Phone</label><input type="text" value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} placeholder="+1 555 000 0000" /></div>
+                                <div className="modal-body" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+                                    {renderStoreForm()}
                                 </div>
                                 <div className="modal-footer">
                                     <button type="button" onClick={() => setShowCreateForm(false)} className="btn btn-ghost">Cancel</button>
@@ -976,17 +1166,14 @@ const IdStoreManagement = () => {
                 {/* Edit Store Modal */}
                 {editingStore && (
                     <div className="modal-overlay">
-                        <div className="modal">
+                        <div className="modal" style={{ maxWidth: '620px' }}>
                             <div className="modal-header">
                                 <h3>Edit ID Store</h3>
                                 <button onClick={() => setEditingStore(null)}><X size={20} /></button>
                             </div>
                             <form onSubmit={handleUpdateStore}>
-                                <div className="modal-body">
-                                    <div className="form-group"><label>Store Name *</label><input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required /></div>
-                                    <div className="form-group"><label>Location</label><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} /></div>
-                                    <div className="form-group"><label>Contact Email</label><input type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} /></div>
-                                    <div className="form-group"><label>Contact Phone</label><input type="text" value={formData.contact_phone} onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })} /></div>
+                                <div className="modal-body" style={{ maxHeight: '80vh', overflow: 'auto' }}>
+                                    {renderStoreForm()}
                                 </div>
                                 <div className="modal-footer">
                                     <button type="button" onClick={() => setEditingStore(null)} className="btn btn-ghost">Cancel</button>
@@ -1155,5 +1342,7 @@ const IdStoreManagement = () => {
 const thStyle = { padding: 'var(--spacing-sm) var(--spacing-md)', textAlign: 'left', borderBottom: '1px solid var(--border-color)', fontSize: 'var(--font-size-sm)', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle = { padding: 'var(--spacing-sm) var(--spacing-md)', fontSize: 'var(--font-size-sm)' };
 const inputStyle = { padding: 'var(--spacing-sm) var(--spacing-md)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-md)', background: 'var(--color-bg-primary)', fontSize: 'var(--font-size-md)' };
+const formSectionTitle = { fontSize: 'var(--font-size-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-tertiary)' };
+const formGrid2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-md)' };
 
 export default IdStoreManagement;

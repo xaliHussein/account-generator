@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { getIdCardByToken, submitIdCardPhone, saveIdCard } from '../services/idApi';
+import { getIdCardByToken, getIdOtp, acceptIdCardTerms, submitIdCardPhone, saveIdCard } from '../services/idApi';
 import { getPublicSettings } from '../services/api';
-import { Copy, Check, FileText, Image, Video, Lock, Phone, Mail, Key, AlertCircle, CheckCircle, AlertTriangle, Save, Edit3 } from 'lucide-react';
+import { Copy, Check, FileText, Image, Video, Lock, Phone, Mail, Key, AlertCircle, CheckCircle, AlertTriangle, Save, Edit3, RefreshCw, MapPin, AtSign, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 /**
@@ -28,15 +28,27 @@ const IdCardView = () => {
     const [saving, setSaving] = useState(false);
     const [warningModal, setWarningModal] = useState(false);
 
+    // OTP code (fetched from the card's outapi via backend proxy)
+    const [otp, setOtp] = useState(null);
+    const [otpLoading, setOtpLoading] = useState(false);
+    const [otpError, setOtpError] = useState(null);
+
     // Terms acceptance
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
+    const [acceptingTerms, setAcceptingTerms] = useState(false);
 
     // WhatsApp visibility from global settings
     const [showWhatsAppButton, setShowWhatsAppButton] = useState(false);
 
     // Instructional video (placeholder - can be configured)
     const videoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+
+    const otpFetchStartedRef = useRef(false);
+
+    useEffect(() => {
+        otpFetchStartedRef.current = false;
+    }, [token]);
 
     useEffect(() => {
         loadCard();
@@ -46,18 +58,49 @@ const IdCardView = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
+    // Defer OTP fetch until terms are accepted to avoid re-renders flashing the terms overlay.
+    useEffect(() => {
+        if (!termsAccepted || !card?.has_otp || otpFetchStartedRef.current) return;
+        otpFetchStartedRef.current = true;
+        loadOtp();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [termsAccepted, card?.has_otp, token]);
+
     const loadCard = async () => {
         setLoading(true);
         setError(null);
         try {
             const data = await getIdCardByToken(token);
             setCard(data);
+            setTermsAccepted(!data.is_first_scan);
         } catch (err) {
             console.error('Failed to load ID card:', err);
             setError(err.response?.data?.error || 'البطاقة غير موجودة أو الرابط غير صالح');
         } finally {
             setLoading(false);
         }
+    };
+
+    const loadOtp = async () => {
+        setOtpLoading(true);
+        setOtpError(null);
+        try {
+            const data = await getIdOtp(token);
+            setOtp(data.otp);
+        } catch (err) {
+            setOtpError(err.response?.data?.error || 'تعذر جلب الرمز');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    // Build a clickable URL from a social handle or full link.
+    const socialLink = (value, type) => {
+        if (!value) return null;
+        const v = String(value).trim();
+        if (/^https?:\/\//i.test(v)) return v;
+        const handle = v.replace(/^@/, '');
+        return type === 'instagram' ? `https://instagram.com/${handle}` : `https://www.tiktok.com/@${handle}`;
     };
 
     const handleCopy = async (field, value) => {
@@ -137,28 +180,44 @@ const IdCardView = () => {
         }
     };
 
+    const handleAcceptTerms = async () => {
+        setAcceptingTerms(true);
+        setError(null);
+        try {
+            await acceptIdCardTerms(token);
+            setCard((prev) => (prev ? { ...prev, is_first_scan: false } : prev));
+            setTermsAccepted(true);
+        } catch (err) {
+            setError(err.response?.data?.error || 'فشل في حفظ الموافقة على الشروط');
+        } finally {
+            setAcceptingTerms(false);
+        }
+    };
+
     const renderTermsBody = () => (
         <div className="terms-content">
             <h3>تعليمات إنشاء حساب Apple ID</h3>
-            <p>هذا الكارت هو محفظة لتخزين حساب الـ Apple ID</p>
+           <p>هذا الحساب يستخدم ابل ستوري فقط</p>
             <p>يقوم الزبون بإنشائه بنفسه من جهازه الخاص وبرقم هاتفه، ويتم حفظه هنا.</p>
             <p>احفظ رقمك الشخصي ثم ابدأ بإنشاء الحساب على رقم هاتفك.</p>
 
             <h3>ملاحظات مهمة:</h3>
             <ol>
-                <li>يجب استعمال رقم هاتف لم يستعمل سابقا في تفعيل حساب Apple ID</li>
-                <li>يتم حفظ معلومات الحساب في نظامنا 3 سنوات بعدها غير مسؤلين عن فقدان المعلومات بعد 3 سنوات من تفعيل الحساب.</li>
-                <li>يمكنك طلب بطاقة خاصه تتضمن معلومات حسابك عند تفعيل حسابك.</li>
+                <li>عند تفعيل الايكلود يرجى ايقاف خاصيه العثور على الهاتف .</li>
+              <li>ربط الحساب برقم الزبون .</li>
+              <li>خلاف ذالك صاحب المحل والتاجر غير مسؤلين عن اي خلل يصيب الهاتف .</li>
             </ol>
 
             <p>يجب ألا يكون الجهاز قد تم إنشاء حسابات عليه سابقا. في بعض الأحيان تكون هناك هواتف مستعملة تم إنشاء حسابات عليها في وقت سابق، حيث إن شركة Apple ID تعطي سماحًا بعدد معين من الحسابات لكل جهاز لذلك قد يتم حظر الجهاز من قبل شركة Apple ID وتظهر رسالة تعذر إنشاء الحساب، حاول في وقت لاحق. هذه المشكلة لا علاقة لها بالبطاقة، ولكنها تعني أن الجهاز نفسه محظور من إنشاء الحسابات في هذه الحالة قم بتفعيل الحساب على جهاز آخر ثم سجل الدخول إلى جهازك. قم بأخذ لقطة شاشة للحساب والاحتفاظ بها لديك بعد تفعيله.</p>
 
             <h3>إخلاء مسؤولية:</h3>
-            <p>الضمان المقدم يقتصر حصريا على ضمان استبدال بطاقة المحفظة فقط، ولا يشمل أي مسؤولية أخرى متعلقة بحساب Apple ID أو أي أضرار مباشرة أو غير مباشرة قد تلحق بالجهاز لأي سبب كان. نحن لا نبيع حساب Apple ID، وإنما نبيع بطاقة محفظة مخصصة لتخزين الحساب الذي يقوم الزبون بإنشائه بنفسه وباستخدام جهازه ورقم هاتفه الشخصي. في الوضع الطبيعي إن إنشاء الحساب يدويا وبشكل مباشر وبرقم هاتف الزبون يُعد حسابًا رسميا وأصوليا صالحًا لاستخدامه كحساب iCloud و Apple ID. ومع ذلك، قد تطرأ في أي وقت أخطاء أو مشكلات داخل أنظمة شركة Apple ID، دون أسباب واضحة، قد تؤدي إلى تعطيل الوصول إلى بعض الخدمات أو التسبب بأضرار، وقد صرحت شركة Apple ID بذلك صراحة ضمن شروط استخدام خدماتها. وبمجرد استخدام أي من خدمات أو منتجات Apple ID، فإن المستخدم يقر ويتحمل كامل المسؤولية عن ذلك وحده. وعليه فإن البائع يخلي مسؤوليته بالكامل وينتهي التزامه عند تسليم بطاقة المحفظة للزبون.</p>
+           <p>الضمان المقدم يقتصر حصريا على ضمان استبدال بطاقة المحفظة فقط، ولا يشمل أي مسؤولية أخرى متعلقة بحساب Apple ID أو أي أضرار مباشرة أو غير مباشرة قد تلحق بالجهاز لأي سبب كان .</p>
 
             <p className="terms-final"><strong>يرجى الالتزام بجميع التعليمات، ويُعد استخدامك للمحفظة إقرارًا بموافقتك الكاملة على جميع الشروط والتعليمات المذكورة أعلاه.</strong></p>
         </div>
     );
+
+    const showFirstScanTerms = Boolean(card?.is_first_scan && !termsAccepted);
 
     if (loading) {
         return (
@@ -179,23 +238,23 @@ const IdCardView = () => {
         );
     }
 
-    // Initial terms gate
-    if (!termsAccepted) {
-        return (
-            <div className="wallet-terms-overlay" dir="rtl">
-                <div className="wallet-terms-modal">
-                    <h2>الشروط والأحكام</h2>
-                    {renderTermsBody()}
-                    <button className="btn btn-wallet-primary terms-accept-btn" onClick={() => setTermsAccepted(true)}>
-                        موافق
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="wallet-card-view account-display" dir="rtl">
+            {showFirstScanTerms && (
+                <div className="wallet-terms-overlay" dir="rtl">
+                    <div className="wallet-terms-modal">
+                        <h2>الشروط والأحكام</h2>
+                        {renderTermsBody()}
+                        <button
+                            className="btn btn-wallet-primary terms-accept-btn"
+                            onClick={handleAcceptTerms}
+                            disabled={acceptingTerms}
+                        >
+                            {acceptingTerms ? 'جاري الحفظ...' : 'موافق'}
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Save Warning Modal */}
             {warningModal && (
                 <div className="wallet-warning-overlay" onClick={() => !saving && setWarningModal(false)}>
@@ -218,7 +277,17 @@ const IdCardView = () => {
             )}
 
             <div className="wallet-view-container" id="id-card-content">
-                {/* Header */}
+                {/* Top bar: Terms button */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--spacing-sm)' }}>
+                    <button
+                        onClick={() => setShowTermsModal(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'white', cursor: 'pointer' }}
+                    >
+                        <FileText size={15} /> سياسة الاستخدام
+                    </button>
+                </div>
+
+                {/* Unified header: store branding + Apple ID identity */}
                 <div className="wallet-view-header">
                     {card.is_locked && (
                         <div className="locked-badge">
@@ -226,9 +295,40 @@ const IdCardView = () => {
                             مقفل
                         </div>
                     )}
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff' }}>Apple ID</div>
-                    <p className="serial-number">الرقم التسلسلي: {card.serial_number}</p>
+
+                    {card.show_store_info && card.store && (card.store.logo || card.store.name) && (
+                        <>
+                            {card.store.logo && (
+                                <img src={card.store.logo} alt="logo" style={{ width: 80, height: 80, borderRadius: '20px', objectFit: 'cover', margin: '0 auto 8px', display: 'block' }} />
+                            )}
+                            {card.store.name && (
+                                <div style={{ fontWeight: 700, fontSize: '17px', color: '#fff' }}>{card.store.name}</div>
+                            )}
+                            <div style={{ height: 1, background: 'rgba(255,255,255,0.18)', width: '70%', margin: '10px auto' }} />
+                        </>
+                    )}
+
+                    <div style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '1px', color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase' }}>Apple ID</div>
+                    <p className="serial-number" style={{ marginTop: '4px' }}>الرقم التسلسلي: {card.serial_number}</p>
                 </div>
+
+                {/* Store contact chips */}
+                {card.show_store_info && card.store && (card.store.phone || card.store.address || card.store.instagram || card.store.tiktok) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', margin: 'var(--spacing-sm) 0 var(--spacing-md)' }}>
+                        {card.store.phone && (
+                            <a href={`tel:${card.store.phone}`} style={chipStyle}><Phone size={13} /> {card.store.phone}</a>
+                        )}
+                        {card.store.address && (
+                            <span style={chipStyle}><MapPin size={13} /> {card.store.address}</span>
+                        )}
+                        {card.store.instagram && (
+                            <a href={socialLink(card.store.instagram, 'instagram')} target="_blank" rel="noopener noreferrer" style={{ ...chipStyle, color: '#ff7eb3' }}><AtSign size={13} /> Instagram</a>
+                        )}
+                        {card.store.tiktok && (
+                            <a href={socialLink(card.store.tiktok, 'tiktok')} target="_blank" rel="noopener noreferrer" style={chipStyle}><AtSign size={13} /> TikTok</a>
+                        )}
+                    </div>
+                )}
 
                 {success && (
                     <div className="wallet-success">
@@ -244,6 +344,7 @@ const IdCardView = () => {
                 )}
 
                 {/* Account Fields */}
+                <div style={{ fontSize: '13px', fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '4px 2px 8px' }}>معلومات الحساب</div>
                 <div className="wallet-fields">
                     {/* Email */}
                     <div className="wallet-field">
@@ -269,6 +370,31 @@ const IdCardView = () => {
                         </button>
                     </div>
 
+                    {/* OTP Code (from outapi) */}
+                    {card.has_otp && (
+                        <div className="wallet-field">
+                            <div className="field-icon"><Key size={18} /></div>
+                            <div className="field-content">
+                                <label>رمز التحقق (OTP)</label>
+                                {otpLoading ? (
+                                    <span style={{ color: 'var(--color-text-secondary)' }}>جاري الجلب...</span>
+                                ) : otpError ? (
+                                    <span style={{ color: '#ff6b6b' }}>{otpError}</span>
+                                ) : (
+                                    <span style={{ fontFamily: 'monospace', letterSpacing: '2px', fontSize: '18px' }}>{otp || '—'}</span>
+                                )}
+                            </div>
+                            <button className="copy-btn" onClick={loadOtp} disabled={otpLoading} title="تحديث الرمز" style={{ opacity: otpLoading ? 0.6 : 1 }}>
+                                <RefreshCw size={16} className={otpLoading ? 'spin' : ''} />
+                            </button>
+                            {otp && !otpLoading && !otpError && (
+                                <button className="copy-btn" onClick={() => handleCopy('otp', otp)}>
+                                    {copiedField === 'otp' ? <Check size={16} /> : <Copy size={16} />}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {/* Phone Number */}
                     <div className="wallet-field">
                         <div className="field-icon"><Phone size={18} /></div>
@@ -287,55 +413,63 @@ const IdCardView = () => {
                                 <span>{card.phone_number || '—'}</span>
                             )}
                         </div>
-                        {!editingPhone && card.phone_number && (
-                            <button className="copy-btn" onClick={() => handleCopy('phone', card.phone_number)}>
-                                {copiedField === 'phone' ? <Check size={16} /> : <Copy size={16} />}
-                            </button>
+                        {editingPhone ? (
+                            <>
+                                <button
+                                    className="copy-btn"
+                                    onClick={handleSavePhone}
+                                    disabled={phoneSaving}
+                                    title="حفظ رقم الهاتف"
+                                    style={{ opacity: phoneSaving ? 0.6 : 1 }}
+                                >
+                                    {phoneSaving ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
+                                </button>
+                                <button
+                                    className="copy-btn"
+                                    onClick={cancelEditPhone}
+                                    disabled={phoneSaving}
+                                    title="إلغاء"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {!card.is_locked && (
+                                    <button className="copy-btn" onClick={startEditPhone} title="تعديل رقم الهاتف">
+                                        <Edit3 size={16} />
+                                    </button>
+                                )}
+                                {card.phone_number && (
+                                    <button className="copy-btn" onClick={() => handleCopy('phone', card.phone_number)}>
+                                        {copiedField === 'phone' ? <Check size={16} /> : <Copy size={16} />}
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
-
-                {/* Phone edit actions */}
-                {editingPhone && (
-                    <div className="wallet-edit-actions">
-                        <button onClick={cancelEditPhone} className="btn btn-wallet-secondary" disabled={phoneSaving}>
-                            إلغاء
-                        </button>
-                        <button onClick={handleSavePhone} className="btn btn-wallet-primary" disabled={phoneSaving}>
-                            {phoneSaving ? 'جاري الحفظ...' : 'حفظ رقم الهاتف'}
-                        </button>
-                    </div>
-                )}
 
                 {/* Save Warning Text */}
                 {!card.is_locked && !editingPhone && (
                     <div className="wallet-save-warning">
                         <AlertTriangle size={18} />
-                        <span>بعد تفعيل الحساب، يجب عليك النقر على زر الحفظ</span>
+                        <span>بعد تفعيل الحساب، قم بتغير رقم الهاتف ثم اضغط على زر الحفظ</span>
                     </div>
                 )}
 
                 {/* Footer Actions */}
                 <div className="wallet-actions-footer" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px 0' }}>
-                    {!card.is_locked && !editingPhone && (
-                        <>
-                            <button
-                                onClick={confirmSave}
-                                className="btn btn-wallet-save"
-                                disabled={saving}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 24px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #00c853, #00a844)', color: 'white', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0, 200, 83, 0.3)', transition: 'all 0.3s ease' }}
-                            >
-                                <Save size={18} />
-                                <span>حفظ</span>
-                            </button>
-                            <button
-                                onClick={startEditPhone}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 24px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #00c8ff, #0099cc)', color: 'white', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0, 200, 255, 0.3)', transition: 'all 0.3s ease' }}
-                            >
-                                <Edit3 size={18} />
-                                <span>تعديل رقم الهاتف</span>
-                            </button>
-                        </>
+                    {!card.is_locked && (
+                        <button
+                            onClick={confirmSave}
+                            className="btn btn-wallet-save"
+                            disabled={saving || editingPhone}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 24px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #00c853, #00a844)', color: 'white', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0, 200, 83, 0.3)', transition: 'all 0.3s ease' }}
+                        >
+                            <Save size={18} />
+                            <span>حفظ</span>
+                        </button>
                     )}
 
                     <button
@@ -355,14 +489,6 @@ const IdCardView = () => {
                         <Video size={18} />
                         <span>فيديو تعليمي</span>
                     </a>
-
-                    <button
-                        onClick={() => setShowTermsModal(true)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 24px', fontSize: '15px', fontWeight: '600', borderRadius: '12px', border: '2px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', cursor: 'pointer', backdropFilter: 'blur(10px)', transition: 'all 0.3s ease' }}
-                    >
-                        <FileText size={18} />
-                        <span>سياسة الاستخدام</span>
-                    </button>
 
                     {showWhatsAppButton && (
                         <a
@@ -412,5 +538,7 @@ const IdCardView = () => {
         </div>
     );
 };
+
+const chipStyle = { display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.9)', fontSize: '12px', textDecoration: 'none' };
 
 export default IdCardView;

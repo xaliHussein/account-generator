@@ -23,6 +23,14 @@ export const createIdStore = async (storeData) => {
 };
 
 /**
+ * Get a single ID store with full details (logo, card design images, store info)
+ */
+export const getIdStore = async (storeId) => {
+    const response = await api.get(`/api/id-stores/${storeId}`);
+    return response.data;
+};
+
+/**
  * Update an ID store
  */
 export const updateIdStore = async (storeId, storeData) => {
@@ -47,6 +55,22 @@ export const deleteIdStore = async (storeId) => {
  */
 export const getIdCardByToken = async (token) => {
     const response = await api.get(`/api/id/${token}`);
+    return response.data;
+};
+
+/**
+ * Fetch the current OTP code for an ID card (public, server-side proxy of outapi)
+ */
+export const getIdOtp = async (token) => {
+    const response = await api.get(`/api/id/${token}/otp`);
+    return response.data;
+};
+
+/**
+ * Accept terms on first scan (public)
+ */
+export const acceptIdCardTerms = async (token) => {
+    const response = await api.post(`/api/id/${token}/accept-terms`);
     return response.data;
 };
 

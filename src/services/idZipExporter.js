@@ -17,6 +17,10 @@ const BATCH_SIZE = 10;
 const RENDER_SCALE = 3;
 
 const getIdCardComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'custom') {
+        const module = await import('../components/IdCardCustom.jsx');
+        return module.default;
+    }
     if (cardDesign === 'light') {
         const module = await import('../components/IdCardLight.jsx');
         return module.default;
@@ -26,6 +30,10 @@ const getIdCardComponent = async (cardDesign = 'classic') => {
 };
 
 const getIdCardBackComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'custom') {
+        const module = await import('../components/IdCardBackCustom.jsx');
+        return module.default;
+    }
     if (cardDesign === 'light') {
         const module = await import('../components/IdCardBackLight.jsx');
         return module.default;
@@ -33,6 +41,11 @@ const getIdCardBackComponent = async (cardDesign = 'classic') => {
     const module = await import('../components/IdCardBack.jsx');
     return module.default;
 };
+
+const frontCardProps = (card, qrLogo, cardDesign, customImages) =>
+    cardDesign === 'custom'
+        ? { card, image: customImages?.front, showQR: true, qrLogo }
+        : { card, showQR: true, qrLogo };
 
 const renderCardBatchToImages = async (Component, cardsProps, onItemProgress) => {
     const canvases = [];
@@ -109,7 +122,7 @@ const canvasToPngBlob = async (canvas) => {
 /**
  * Export ID cards as ZIP (PDFs only).
  */
-export const exportIdCardsAsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null) => {
+export const exportIdCardsAsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
     const zip = new JSZip();
     const folder = zip.folder('id-cards');
     const IdCard = await getIdCardComponent(cardDesign);
@@ -119,7 +132,7 @@ export const exportIdCardsAsZip = async (cards, onProgress, cardDesign = 'classi
     for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
         const batchCards = cards.slice(batchStart, batchEnd);
-        const batchProps = batchCards.map((card) => ({ card, showQR: true, qrLogo }));
+        const batchProps = batchCards.map((card) => frontCardProps(card, qrLogo, cardDesign, customImages));
 
         const batchCanvases = await renderCardBatchToImages(IdCard, batchProps, (itemIndex) => {
             processedCount = batchStart + itemIndex;
@@ -148,7 +161,7 @@ export const exportIdCardsAsZip = async (cards, onProgress, cardDesign = 'classi
 /**
  * Export ID cards as ZIP (Images only).
  */
-export const exportIdCardsImagesOnlyAsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null) => {
+export const exportIdCardsImagesOnlyAsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
     const zip = new JSZip();
     const folder = zip.folder('images');
     const IdCard = await getIdCardComponent(cardDesign);
@@ -158,7 +171,7 @@ export const exportIdCardsImagesOnlyAsZip = async (cards, onProgress, cardDesign
     for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
         const batchCards = cards.slice(batchStart, batchEnd);
-        const batchProps = batchCards.map((card) => ({ card, showQR: true, qrLogo }));
+        const batchProps = batchCards.map((card) => frontCardProps(card, qrLogo, cardDesign, customImages));
 
         const batchCanvases = await renderCardBatchToImages(IdCard, batchProps, (itemIndex) => {
             processedCount = batchStart + itemIndex;
@@ -187,7 +200,7 @@ export const exportIdCardsImagesOnlyAsZip = async (cards, onProgress, cardDesign
 /**
  * Export ID card backs as ZIP (Images only).
  */
-export const exportIdCardBacksAsZip = async (count, onProgress, cardDesign = 'classic') => {
+export const exportIdCardBacksAsZip = async (count, onProgress, cardDesign = 'classic', customImages = {}) => {
     const zip = new JSZip();
     const folder = zip.folder('card-backs');
     const IdCardBack = await getIdCardBackComponent(cardDesign);
@@ -198,7 +211,7 @@ export const exportIdCardBacksAsZip = async (count, onProgress, cardDesign = 'cl
     for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
         const batchCards = cards.slice(batchStart, batchEnd);
-        const batchProps = batchCards.map(() => ({}));
+        const batchProps = batchCards.map(() => (cardDesign === 'custom' ? { image: customImages?.back } : {}));
 
         const batchCanvases = await renderCardBatchToImages(IdCardBack, batchProps, (itemIndex) => {
             processedCount = batchStart + itemIndex;
@@ -219,20 +232,20 @@ export const exportIdCardBacksAsZip = async (count, onProgress, cardDesign = 'cl
     return await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 };
 
-export const downloadIdCardsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null) => {
-    const zipBlob = await exportIdCardsAsZip(cards, onProgress, cardDesign, qrLogo);
+export const downloadIdCardsZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
+    const zipBlob = await exportIdCardsAsZip(cards, onProgress, cardDesign, qrLogo, customImages);
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `id-cards_${timestamp}_${cards.length}-cards.zip`);
 };
 
-export const downloadIdCardsImagesZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null) => {
-    const zipBlob = await exportIdCardsImagesOnlyAsZip(cards, onProgress, cardDesign, qrLogo);
+export const downloadIdCardsImagesZip = async (cards, onProgress, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
+    const zipBlob = await exportIdCardsImagesOnlyAsZip(cards, onProgress, cardDesign, qrLogo, customImages);
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `id-cards_${timestamp}_${cards.length}-cards_images.zip`);
 };
 
-export const downloadIdCardBacksImagesZip = async (count, onProgress, cardDesign = 'classic') => {
-    const zipBlob = await exportIdCardBacksAsZip(count, onProgress, cardDesign);
+export const downloadIdCardBacksImagesZip = async (count, onProgress, cardDesign = 'classic', customImages = {}) => {
+    const zipBlob = await exportIdCardBacksAsZip(count, onProgress, cardDesign, customImages);
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
     saveAs(zipBlob, `id-card-backs_${timestamp}_${count}-cards.zip`);
 };

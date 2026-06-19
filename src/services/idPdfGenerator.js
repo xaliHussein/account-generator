@@ -24,6 +24,10 @@ const BATCH_SIZE = 10;
 const RENDER_SCALE = 3;
 
 const getIdCardComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'custom') {
+        const module = await import('../components/IdCardCustom.jsx');
+        return module.default;
+    }
     if (cardDesign === 'light') {
         const module = await import('../components/IdCardLight.jsx');
         return module.default;
@@ -33,6 +37,10 @@ const getIdCardComponent = async (cardDesign = 'classic') => {
 };
 
 const getIdCardBackComponent = async (cardDesign = 'classic') => {
+    if (cardDesign === 'custom') {
+        const module = await import('../components/IdCardBackCustom.jsx');
+        return module.default;
+    }
     if (cardDesign === 'light') {
         const module = await import('../components/IdCardBackLight.jsx');
         return module.default;
@@ -40,6 +48,16 @@ const getIdCardBackComponent = async (cardDesign = 'classic') => {
     const module = await import('../components/IdCardBack.jsx');
     return module.default;
 };
+
+// Build the props for a front card based on design.
+const frontCardProps = (card, qrLogo, cardDesign, customImages) =>
+    cardDesign === 'custom'
+        ? { card, image: customImages?.front, showQR: true, qrLogo }
+        : { card, showQR: true, qrLogo };
+
+// Build the props for a back card based on design.
+const backCardProps = (card, cardDesign, customImages) =>
+    cardDesign === 'custom' ? { image: customImages?.back } : { card };
 
 /**
  * Render a batch of cards to canvas images.
@@ -109,28 +127,28 @@ const drawCardOnPDF = (pdf, canvas, x, y, width, height) => {
 /**
  * Generate a single ID card PDF (front only).
  */
-export const generateIdCardPDF = async (card, qrLogo = null) => {
-    const IdCard = await getIdCardComponent();
+export const generateIdCardPDF = async (card, qrLogo = null, cardDesign = 'classic', customImages = {}) => {
+    const IdCardComp = await getIdCardComponent(cardDesign);
     const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: [CARD_DIMENSIONS.cardHeight, CARD_DIMENSIONS.cardWidth],
     });
 
-    const [canvas] = await renderCardBatchToImages(IdCard, [{ card, showQR: true, qrLogo }]);
+    const [canvas] = await renderCardBatchToImages(IdCardComp, [frontCardProps(card, qrLogo, cardDesign, customImages)]);
     drawCardOnPDF(pdf, canvas, 0, 0, CARD_DIMENSIONS.cardWidth, CARD_DIMENSIONS.cardHeight);
     return pdf;
 };
 
-export const downloadIdCardPDF = async (card, qrLogo = null) => {
-    const pdf = await generateIdCardPDF(card, qrLogo);
+export const downloadIdCardPDF = async (card, qrLogo = null, cardDesign = 'classic', customImages = {}) => {
+    const pdf = await generateIdCardPDF(card, qrLogo, cardDesign, customImages);
     pdf.save(`id-card-${card.serial_number || card.id}.pdf`);
 };
 
 /**
  * Generate ID card print sheet PDF.
  */
-export const generateIdPrintSheetPDF = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null) => {
+export const generateIdPrintSheetPDF = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
     const { cardWidth, cardHeight, marginX, marginY } = CARD_DIMENSIONS;
     const IdCard = await getIdCardComponent(cardDesign);
 
@@ -158,7 +176,7 @@ export const generateIdPrintSheetPDF = async (cards, onProgress, boardWidth = 90
     for (let batchStart = 0; batchStart < cards.length; batchStart += BATCH_SIZE) {
         const batchEnd = Math.min(batchStart + BATCH_SIZE, cards.length);
         const batchCards = cards.slice(batchStart, batchEnd);
-        const batchProps = batchCards.map((card) => ({ card, showQR: true, qrLogo }));
+        const batchProps = batchCards.map((card) => frontCardProps(card, qrLogo, cardDesign, customImages));
 
         const batchCanvases = await renderCardBatchToImages(IdCard, batchProps, (itemIndex) => {
             processedCount = batchStart + itemIndex;
@@ -193,8 +211,8 @@ export const generateIdPrintSheetPDF = async (cards, onProgress, boardWidth = 90
     return pdf.output('blob');
 };
 
-export const downloadIdPrintSheetPDF = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null) => {
-    const blob = await generateIdPrintSheetPDF(cards, onProgress, boardWidth, boardHeight, cardDesign, qrLogo);
+export const downloadIdPrintSheetPDF = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
+    const blob = await generateIdPrintSheetPDF(cards, onProgress, boardWidth, boardHeight, cardDesign, qrLogo, customImages);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -300,15 +318,15 @@ const compositeSheetImages = async (Component, cards, batchProps, onProgress, bo
     saveAs(zipBlob, `${fileBase}s-${cards.length}-cards-${boardInfo}-${timestamp}.zip`);
 };
 
-export const downloadIdPrintSheetImage = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null) => {
+export const downloadIdPrintSheetImage = async (cards, onProgress, boardWidth = 900, boardHeight = 600, cardDesign = 'classic', qrLogo = null, customImages = {}) => {
     const IdCard = await getIdCardComponent(cardDesign);
-    const batchProps = cards.map((card) => ({ card, showQR: true, qrLogo }));
+    const batchProps = cards.map((card) => frontCardProps(card, qrLogo, cardDesign, customImages));
     await compositeSheetImages(IdCard, cards, batchProps, onProgress, boardWidth, boardHeight, 'id-print-sheet', 'creating-image');
 };
 
-export const downloadIdCardBackPrintSheetImage = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic') => {
+export const downloadIdCardBackPrintSheetImage = async (cards, onProgress, boardWidth = 600, boardHeight = 900, cardDesign = 'classic', customImages = {}) => {
     const IdCardBack = await getIdCardBackComponent(cardDesign);
-    const batchProps = cards.map((card) => ({ card }));
+    const batchProps = cards.map((card) => backCardProps(card, cardDesign, customImages));
     await compositeSheetImages(IdCardBack, cards, batchProps, onProgress, boardWidth, boardHeight, 'id-card-backs-sheet', 'creating-cardback-sheet');
 };
 
